@@ -263,3 +263,20 @@ Description: Create Dockerfile for React/Vue frontend.
 
 #### Task 5.4.3: Docker Compose Setup
 Description: Create docker-compose.yml to run frontend, backend, and DB together.
+
+## Implementation Roadmap
+### Sprint 1 Tech Stack Priority
+- Node.js + Express + TypeScript (backend foundation)
+- Socket.IO (for chat and user management)
+- React + TypeScript (frontend foundation)
+- In-memory storage (simplest start)
+
+### Sprint 2-3 Additions
+- Y.js + Monaco Editor (collaborative text editing)
+- Redis (optional, for room persistence)
+- Tailwind CSS (rapid UI development)
+
+### Sprint 4-5 Scaling
+- PostgreSQL + Prisma (persistent storage)
+- Fabric.js (whiteboard feature)
+- Docker containerization
