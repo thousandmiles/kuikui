@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import HomePage from './pages/HomePage';
-import RoomPage from './pages/RoomPage';
+import HomePage from './pages/HomePage.js';
+import RoomPage from './pages/RoomPage.js';
 
 const App: React.FC = () => {
     return (

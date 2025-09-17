@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { JoinRoomRequest, JoinRoomResponse, User, ChatMessage, TypingStatus } from '../types';
+import { JoinRoomRequest, JoinRoomResponse, User, ChatMessage, TypingStatus } from '../types/index.js';
 
 class SocketService {
     private socket: Socket | null = null;

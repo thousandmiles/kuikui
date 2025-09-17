@@ -28,12 +28,17 @@ router.post('/create-room', (req: Request, res: Response<CreateRoomResponse>) =>
 router.get('/room/:roomId/exists', (req: Request, res: Response) => {
     try {
         const { roomId } = req.params;
+        
+        if (!roomId) {
+            return res.status(400).json({ error: 'Room ID is required' });
+        }
+        
         const exists = roomService.roomExists(roomId);
 
-        res.json({ exists });
+        return res.json({ exists });
     } catch (error) {
         console.error('Error checking room:', error);
-        res.status(500).json({ error: 'Failed to check room' });
+        return res.status(500).json({ error: 'Failed to check room' });
     }
 });
 
