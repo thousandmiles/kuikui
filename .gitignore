@@ -1,0 +1,130 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage and testing
+coverage/
+*.lcov
+.nyc_output/
+junit.xml
+
+# Cache directories
+.npm
+.eslintcache
+.stylelintcache
+.cache/
+.parcel-cache/
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Framework specific
+.next/
+.nuxt/
+.gatsby/
+.serverless/
+.fusebox/
+.vuepress/dist/
+
+# Vite
+dist-ssr/
+*.local
+
+# Optional REPL history
+.node_repl_history
+
+# Package manager files
+*.tgz
+.yarn-integrity
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+.dynamodb/
+
+# Temporary folders
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.AppleDouble
+.LSOverride
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# IDE and Editor files
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.idea/
+*.iml
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Docker
+.dockerignore
+Dockerfile.prod
+
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Directory for instrumented libs
+lib-cov/
+
+# Dependency directories
+jspm_packages/
+web_modules/
+bower_components/
+
+# Build tools
+.grunt/
+.tern-port
+
+# Testing
+.vscode-test/
