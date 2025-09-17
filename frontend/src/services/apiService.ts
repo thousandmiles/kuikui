@@ -1,4 +1,4 @@
-import { CreateRoomResponse } from '../types/index.ts';
+import { CreateRoomResponse } from '../types/index.js';
 
 const API_BASE_URL = 'http://localhost:3001/api';
 
