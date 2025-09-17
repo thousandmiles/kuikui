@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { socketService } from '../services/socketService.js';
-import { apiService } from '../services/apiService.js';
-import { User, ChatMessage, TypingStatus } from '../types/index.js';
-import UserList from '../components/UserList.js';
-import ChatArea from '../components/ChatArea.js';
+import { socketService } from '../services/socketService';
+import { apiService } from '../services/apiService';
+import { User, ChatMessage, TypingStatus } from '../types/index';
+import UserList from '../components/UserList';
+import ChatArea from '../components/ChatArea';
 
 const RoomPage: React.FC = () => {
     const { roomId } = useParams<{ roomId: string }>();

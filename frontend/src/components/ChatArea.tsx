@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage } from '../types/index.js';
+import { useState, useRef, useEffect } from 'react';
+import { ChatMessage } from '../types/index';
 
 interface ChatAreaProps {
     messages: ChatMessage[];

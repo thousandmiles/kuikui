@@ -1,7 +1,6 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import HomePage from './pages/HomePage.js';
-import RoomPage from './pages/RoomPage.js';
+import HomePage from './pages/HomePage';
+import RoomPage from './pages/RoomPage';
 
 const App: React.FC = () => {
     return (

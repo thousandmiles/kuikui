@@ -7,10 +7,9 @@
             "DOM",
             "DOM.Iterable"
         ],
-        "module": "Node16",
+        "module": "ESNext",
         "skipLibCheck": true,
-        "moduleResolution": "node16",
-        "allowImportingTsExtensions": true,
+        "moduleResolution": "bundler",
         "allowSyntheticDefaultImports": true,
         "esModuleInterop": true,
         "resolveJsonModule": true,
@@ -22,16 +21,6 @@
         "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true,
         "baseUrl": ".",
-        "typeRoots": [
-            "../node_modules/@types",
-            "node_modules/@types"
-        ],
-        "paths": {
-            "*": [
-                "../node_modules/*",
-                "node_modules/*"
-            ]
-        }
     },
     "include": [
         "src"

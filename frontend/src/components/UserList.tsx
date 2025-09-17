@@ -1,5 +1,4 @@
-import React from 'react';
-import { User, TypingStatus } from '../types/index.js';
+import { User, TypingStatus } from '../types/index';
 
 interface UserListProps {
     users: User[];
