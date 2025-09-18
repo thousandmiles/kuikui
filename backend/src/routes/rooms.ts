@@ -1,19 +1,28 @@
 import { Router, Request, Response } from 'express';
 import { roomService } from '../services/roomService';
 import { CreateRoomResponse } from '../types';
+import { backendConfig } from '../config/environment';
 
 const router = Router();
 
 // POST /api/create-room
 router.post('/create-room', (req: Request, res: Response<CreateRoomResponse>) => {
+    console.log('POST /api/create-room - Request received');
     try {
         const roomId = roomService.createRoom();
-        const roomLink = `${req.protocol}://${req.get('host')}/room/${roomId}`;
+        console.log('Room created with ID:', roomId);
+        
+        // Use configured frontend URL
+        const roomLink = `${backendConfig.FRONTEND_URL}/room/${roomId}`;
+        console.log('Generated room link:', roomLink);
 
-        res.status(201).json({
+        const response = {
             roomId,
             roomLink
-        });
+        };
+        
+        console.log('Sending response:', response);
+        res.status(201).json(response);
     } catch (error) {
         console.error('Error creating room:', error);
         res.status(500).json({

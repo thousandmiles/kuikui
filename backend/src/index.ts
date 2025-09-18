@@ -7,15 +7,16 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import roomRoutes from './routes/rooms';
 import { setupSocketHandlers } from './services/socketService';
+import { backendConfig } from './config/environment';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables from parent directory
+dotenv.config({ path: '../.env' });
 
 const app = express();
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
     cors: {
-        origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+        origin: backendConfig.CORS_ORIGIN,
         methods: ["GET", "POST"]
     }
 });
@@ -25,7 +26,7 @@ app.use(helmet());
 
 // CORS middleware
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+    origin: backendConfig.CORS_ORIGIN,
     credentials: true
 }));
 
@@ -63,11 +64,14 @@ app.use('*', (req, res) => {
     res.status(404).json({ error: 'Route not found' });
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = backendConfig.PORT;
 
 httpServer.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    console.log(`Health check: http://localhost:${PORT}/health`);
+    console.log(`Backend URL: ${backendConfig.BACKEND_URL}`);
+    console.log(`Frontend URL: ${backendConfig.FRONTEND_URL}`);
+    console.log(`CORS Origin: ${backendConfig.CORS_ORIGIN}`);
+    console.log(`Health check: ${backendConfig.BACKEND_URL}/health`);
     console.log(`WebSocket server ready`);
 });
 
