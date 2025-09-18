@@ -42,59 +42,77 @@ const RoomPage: React.FC = () => {
     }, [roomId, navigate]);
 
     useEffect(() => {
-        const setupSocketListeners = () => {
-            socketService.on('room-joined', (data: any) => {
-                if (data.success) {
-                    setUsers(data.users);
-                    setMessages(data.messages);
-                    setIsJoined(true);
-                    setError('');
+        // Define event handlers
+        const handleRoomJoined = (data: any) => {
+            if (data.success) {
+                setUsers(data.users);
+                setMessages(data.messages);
+                setIsJoined(true);
+                setError('');
 
-                    // Store current user (we'll get the user ID from the join response)
-                    currentUserRef.current = data.users.find((u: User) => u.nickname === nickname) || null;
-                } else {
-                    setError(data.error || 'Failed to join room');
+                // Store current user (we'll get the user ID from the join response)
+                currentUserRef.current = data.users.find((u: User) => u.nickname === nickname) || null;
+            } else {
+                setError(data.error || 'Failed to join room');
+            }
+            setIsConnecting(false);
+        };
+
+        const handleUserJoined = (user: User) => {
+            setUsers(prev => {
+                // Check if user already exists to prevent duplicates
+                const userExists = prev.some(existingUser => existingUser.id === user.id);
+                if (userExists) {
+                    console.warn('User already exists in the list, skipping duplicate:', user.nickname);
+                    return prev;
                 }
-                setIsConnecting(false);
-            });
-
-            socketService.on('user-joined', (user: User) => {
-                setUsers(prev => [...prev, user]);
-            });
-
-            socketService.on('user-left', (userId: string) => {
-                setUsers(prev => prev.filter(u => u.id !== userId));
-                setTypingUsers(prev => prev.filter(t => t.userId !== userId));
-            });
-
-            socketService.on('new-message', (message: ChatMessage) => {
-                setMessages(prev => [...prev, message]);
-            });
-
-            socketService.on('user-typing-status', (status: TypingStatus) => {
-                setTypingUsers(prev => {
-                    const filtered = prev.filter(t => t.userId !== status.userId);
-                    return status.isTyping ? [...filtered, status] : filtered;
-                });
-            });
-
-            socketService.on('error', (data: { message: string }) => {
-                setError(data.message);
-                setIsConnecting(false);
+                console.log('Adding new user to list:', user.nickname);
+                return [...prev, user];
             });
         };
 
-        // Call the function to set up listeners
-        setupSocketListeners();
+        const handleUserLeft = (userId: string) => {
+            setUsers(prev => prev.filter(u => u.id !== userId));
+            setTypingUsers(prev => prev.filter(t => t.userId !== userId));
+        };
+
+        const handleNewMessage = (message: ChatMessage) => {
+            setMessages(prev => [...prev, message]);
+        };
+
+        const handleUserTypingStatus = (status: TypingStatus) => {
+            setTypingUsers(prev => {
+                const filtered = prev.filter(t => t.userId !== status.userId);
+                return status.isTyping ? [...filtered, status] : filtered;
+            });
+        };
+
+        const handleError = (data: { message: string }) => {
+            setError(data.message);
+            setIsConnecting(false);
+        };
+
+        // Register event listeners
+        socketService.on('room-joined', handleRoomJoined);
+        socketService.on('user-joined', handleUserJoined);
+        socketService.on('user-left', handleUserLeft);
+        socketService.on('new-message', handleNewMessage);
+        socketService.on('user-typing-status', handleUserTypingStatus);
+        socketService.on('error', handleError);
 
         return () => {
-            // Cleanup listeners when component unmounts
-            socketService.off('room-joined', () => { });
-            socketService.off('user-joined', () => { });
-            socketService.off('user-left', () => { });
-            socketService.off('new-message', () => { });
-            socketService.off('user-typing-status', () => { });
-            socketService.off('error', () => { });
+            // Cleanup listeners with actual function references
+            socketService.off('room-joined', handleRoomJoined);
+            socketService.off('user-joined', handleUserJoined);
+            socketService.off('user-left', handleUserLeft);
+            socketService.off('new-message', handleNewMessage);
+            socketService.off('user-typing-status', handleUserTypingStatus);
+            socketService.off('error', handleError);
+            
+            // Disconnect when leaving the component
+            if (socketService.isConnected()) {
+                socketService.disconnect();
+            }
         };
     }, [nickname]);
 
