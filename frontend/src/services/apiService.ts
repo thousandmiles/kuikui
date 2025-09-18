@@ -1,11 +1,17 @@
 import { CreateRoomResponse } from '../types/index.js';
-
-const API_BASE_URL = 'http://localhost:3001/api';
+import { frontendConfig } from '../config/environment.js';
 
 class ApiService {
+    private readonly baseUrl: string;
+
+    constructor() {
+        this.baseUrl = frontendConfig.API_BASE_URL;
+        console.log('ApiService initialized with base URL:', this.baseUrl);
+    }
+
     async createRoom(): Promise<CreateRoomResponse> {
         try {
-            const response = await fetch(`${API_BASE_URL}/create-room`, {
+            const response = await fetch(`${this.baseUrl}/create-room`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -25,7 +31,7 @@ class ApiService {
 
     async checkRoomExists(roomId: string): Promise<boolean> {
         try {
-            const response = await fetch(`${API_BASE_URL}/room/${roomId}/exists`);
+            const response = await fetch(`${this.baseUrl}/room/${roomId}/exists`);
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -41,7 +47,7 @@ class ApiService {
 
     async getStats() {
         try {
-            const response = await fetch(`${API_BASE_URL}/stats`);
+            const response = await fetch(`${this.baseUrl}/stats`);
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);

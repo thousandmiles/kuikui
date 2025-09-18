@@ -1,14 +1,22 @@
 import { io, Socket } from 'socket.io-client';
 import { JoinRoomRequest, JoinRoomResponse, User, ChatMessage, TypingStatus } from '../types/index.js';
+import { frontendConfig } from '../config/environment.js';
 
 class SocketService {
     private socket: Socket | null = null;
     private listeners: Map<string, Function[]> = new Map();
+    private readonly defaultServerUrl: string;
 
-    connect(serverUrl: string = 'http://localhost:3001'): Promise<void> {
+    constructor() {
+        this.defaultServerUrl = frontendConfig.WEBSOCKET_URL;
+        console.log('SocketService initialized with WebSocket URL:', this.defaultServerUrl);
+    }
+
+    connect(serverUrl?: string): Promise<void> {
         return new Promise((resolve, reject) => {
             try {
-                this.socket = io(serverUrl, {
+                const url = serverUrl || this.defaultServerUrl;
+                this.socket = io(url, {
                     transports: ['websocket'],
                     upgrade: true
                 });
