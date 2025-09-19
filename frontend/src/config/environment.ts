@@ -2,8 +2,6 @@
  * Frontend environment configuration for kuikui
  */
 
-import logger from '../utils/logger.js';
-
 export interface FrontendConfig {
   NODE_ENV: 'development' | 'production' | 'test';
   API_BASE_URL: string;
@@ -37,32 +35,6 @@ export function loadFrontendConfig(): FrontendConfig {
     BACKEND_URL: backendUrl,
     FRONTEND_URL: frontendUrl,
   };
-}
-
-/**
- * Validates that the backend is reachable
- */
-export async function validateBackendConnection(
-  config: FrontendConfig
-): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-    const response = await fetch(`${config.BACKEND_URL}/health`, {
-      signal: controller.signal,
-      mode: 'cors',
-    });
-
-    clearTimeout(timeoutId);
-    return response.ok;
-  } catch (error) {
-    logger.warn(`Failed to connect to backend at ${config.BACKEND_URL}`, {
-      error: error instanceof Error ? error.message : String(error),
-      backendUrl: config.BACKEND_URL,
-    });
-    return false;
-  }
 }
 
 // Export singleton instance
