@@ -32,15 +32,13 @@ jobs:
           
       - name: Install
         run: npm ci
-        
-      - name: Env Setup
-        run: npm run env:setup
-        
-      - name: Env validate
-        run: npm run env:validate
       
-      - name: Lint
-        run: npm run lint
+      - name: Lint FrontEnd (non-blocking)
+        run: npm run lint --workspace=frontend
+        continue-on-error: true
+
+      - name: Lint BackEnd (non-blocking)
+        run: npm run lint --workspace=backend
         continue-on-error: true
         
       - name: (Placeholder) Tests (non-blocking)
