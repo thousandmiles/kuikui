@@ -3,12 +3,23 @@ module.exports = {
     env: { browser: true, es2020: true },
     extends: [
         'eslint:recommended',
-        '@typescript-eslint/recommended',
-        'eslint-plugin-react-hooks/recommended',
+        'plugin:react/recommended',
+        'plugin:@typescript-eslint/recommended',
+        'plugin:react-hooks/recommended'
     ],
     ignorePatterns: ['dist', '.eslintrc.cjs'],
     parser: '@typescript-eslint/parser',
-    plugins: ['react-refresh'],
+    parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        ecmaFeatures: { jsx: true }
+    },
+    plugins: [
+        '@typescript-eslint',
+        'react',
+        'react-hooks',
+        'react-refresh'
+    ],
     rules: {
         'react-refresh/only-export-components': [
             'warn',
