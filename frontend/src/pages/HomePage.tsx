@@ -55,7 +55,7 @@ const HomePage: React.FC = () => {
 
         <div className='space-y-4'>
           <button
-            onClick={handleCreateRoom}
+            onClick={() => void handleCreateRoom()}
             disabled={isCreating}
             className='w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold py-3 px-4 rounded-lg transition duration-200'
           >
@@ -92,7 +92,7 @@ const HomePage: React.FC = () => {
                 className='flex-1 px-3 py-2 border border-green-300 rounded text-sm'
               />
               <button
-                onClick={copyToClipboard}
+                onClick={() => void copyToClipboard()}
                 className='px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded transition duration-200'
               >
                 Copy

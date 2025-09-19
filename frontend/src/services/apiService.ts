@@ -23,7 +23,7 @@ class ApiService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      return await response.json();
+      return (await response.json()) as CreateRoomResponse;
     } catch (error) {
       logger.error('Error creating room', {
         error: error instanceof Error ? error.message : String(error),
@@ -41,7 +41,7 @@ class ApiService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as { exists: boolean };
       return data.exists;
     } catch (error) {
       logger.error('Error checking room', {
@@ -61,7 +61,7 @@ class ApiService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      return await response.json();
+      return (await response.json()) as unknown;
     } catch (error) {
       logger.error('Error getting stats', {
         error: error instanceof Error ? error.message : String(error),

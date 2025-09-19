@@ -11,7 +11,7 @@ import logger from '../utils/logger.js';
 
 class SocketService {
   private socket: Socket | null = null;
-  private listeners: Map<string, Function[]> = new Map();
+  private listeners: Map<string, ((...args: unknown[]) => void)[]> = new Map();
   private readonly defaultServerUrl: string;
 
   constructor() {
@@ -24,7 +24,7 @@ class SocketService {
   connect(serverUrl?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const url = serverUrl || this.defaultServerUrl;
+        const url = serverUrl ?? this.defaultServerUrl;
         this.socket = io(url, {
           transports: ['websocket'],
           upgrade: true,
@@ -111,14 +111,14 @@ class SocketService {
   }
 
   // Event listener management
-  on(event: string, callback: Function) {
+  on(event: string, callback: (...args: unknown[]) => void) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
     }
     this.listeners.get(event)!.push(callback);
   }
 
-  off(event: string, callback: Function) {
+  off(event: string, callback: (...args: unknown[]) => void) {
     const eventListeners = this.listeners.get(event);
     if (eventListeners) {
       const index = eventListeners.indexOf(callback);
@@ -128,7 +128,7 @@ class SocketService {
     }
   }
 
-  private emit(event: string, data: any) {
+  private emit(event: string, data: unknown) {
     const eventListeners = this.listeners.get(event);
     if (eventListeners) {
       eventListeners.forEach(callback => callback(data));
@@ -144,7 +144,7 @@ class SocketService {
   }
 
   isConnected(): boolean {
-    return this.socket?.connected || false;
+    return this.socket?.connected ?? false;
   }
 }
 

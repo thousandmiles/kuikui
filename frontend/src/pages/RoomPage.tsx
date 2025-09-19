@@ -2,7 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { socketService } from '../services/socketService';
 import { apiService } from '../services/apiService';
-import { User, ChatMessage, TypingStatus } from '../types/index';
+import {
+  User,
+  ChatMessage,
+  TypingStatus,
+  JoinRoomResponse,
+} from '../types/index';
 import UserList from '../components/UserList';
 import ChatArea from '../components/ChatArea';
 import logger from '../utils/logger.js';
@@ -42,67 +47,72 @@ const RoomPage: React.FC = () => {
       }
     };
 
-    checkRoom();
+    void checkRoom();
   }, [roomId, navigate]);
 
   useEffect(() => {
     // Define event handlers
-    const handleRoomJoined = (data: any) => {
-      if (data.success) {
-        setUsers(data.users);
-        setMessages(data.messages);
+    const handleRoomJoined = (data: unknown) => {
+      const joinResponse = data as JoinRoomResponse;
+      if (joinResponse.success) {
+        setUsers(joinResponse.users);
+        setMessages(joinResponse.messages);
         setIsJoined(true);
         setError('');
 
         // Store current user (we'll get the user ID from the join response)
         currentUserRef.current =
-          data.users.find((u: User) => u.nickname === nickname) || null;
+          joinResponse.users.find((u: User) => u.nickname === nickname) ?? null;
       } else {
-        setError(data.error || 'Failed to join room');
+        setError(joinResponse.error ?? 'Failed to join room');
       }
       setIsConnecting(false);
     };
 
-    const handleUserJoined = (user: User) => {
+    const handleUserJoined = (user: unknown) => {
+      const userData = user as User;
       setUsers(prev => {
         // Check if user already exists to prevent duplicates
         const userExists = prev.some(
-          existingUser => existingUser.id === user.id
+          existingUser => existingUser.id === userData.id
         );
         if (userExists) {
           logger.warn('User already exists in the list, skipping duplicate', {
-            nickname: user.nickname,
-            userId: user.id,
+            nickname: userData.nickname,
+            userId: userData.id,
             roomId,
           });
           return prev;
         }
         logger.component('RoomPage', 'Adding new user to list', {
-          nickname: user.nickname,
-          userId: user.id,
+          nickname: userData.nickname,
+          userId: userData.id,
         });
-        return [...prev, user];
+        return [...prev, userData];
       });
     };
 
-    const handleUserLeft = (userId: string) => {
-      setUsers(prev => prev.filter(u => u.id !== userId));
-      setTypingUsers(prev => prev.filter(t => t.userId !== userId));
+    const handleUserLeft = (userId: unknown) => {
+      setUsers(prev => prev.filter(u => u.id !== String(userId)));
+      setTypingUsers(prev => prev.filter(t => t.userId !== String(userId)));
     };
 
-    const handleNewMessage = (message: ChatMessage) => {
-      setMessages(prev => [...prev, message]);
+    const handleNewMessage = (message: unknown) => {
+      const chatMessage = message as ChatMessage;
+      setMessages(prev => [...prev, chatMessage]);
     };
 
-    const handleUserTypingStatus = (status: TypingStatus) => {
+    const handleUserTypingStatus = (status: unknown) => {
+      const typingStatus = status as TypingStatus;
       setTypingUsers(prev => {
-        const filtered = prev.filter(t => t.userId !== status.userId);
-        return status.isTyping ? [...filtered, status] : filtered;
+        const filtered = prev.filter(t => t.userId !== typingStatus.userId);
+        return typingStatus.isTyping ? [...filtered, typingStatus] : filtered;
       });
     };
 
-    const handleError = (data: { message: string }) => {
-      setError(data.message);
+    const handleError = (data: unknown) => {
+      const errorData = data as { message: string };
+      setError(errorData.message);
       setIsConnecting(false);
     };
 
@@ -128,7 +138,7 @@ const RoomPage: React.FC = () => {
         socketService.disconnect();
       }
     };
-  }, [nickname]);
+  }, [nickname, roomId]);
 
   const handleJoinRoom = async () => {
     if (!nickname.trim() || !roomId) {
@@ -206,7 +216,7 @@ const RoomPage: React.FC = () => {
                 id='nickname'
                 value={nickname}
                 onChange={e => setNickname(e.target.value)}
-                onKeyPress={e => e.key === 'Enter' && handleJoinRoom()}
+                onKeyPress={e => e.key === 'Enter' && void handleJoinRoom()}
                 placeholder='Enter your nickname'
                 className='w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
                 maxLength={30}
@@ -215,7 +225,7 @@ const RoomPage: React.FC = () => {
             </div>
 
             <button
-              onClick={handleJoinRoom}
+              onClick={() => void handleJoinRoom()}
               disabled={!nickname.trim() || isConnecting}
               className='w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold py-3 px-4 rounded-lg transition duration-200'
             >
