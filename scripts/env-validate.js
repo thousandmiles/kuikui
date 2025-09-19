@@ -70,15 +70,13 @@ function main() {
     const frontendValid = validateFrontendConfig(mergedFrontendEnv);
     
     if (backendValid && frontendValid) {
-        console.log('\nAll environment configurations are valid!');
-        
+        console.log('\nAll environment configurations are good!');
         // Display configuration summary
-        console.log('\nConfiguration Summary:');
-        console.log(`   Backend Port: ${mergedBackendEnv.PORT || mergedBackendEnv.BACKEND_PORT || '3001'}`);
-        console.log(`   Frontend Port: ${rootEnv.FRONTEND_PORT || '5173'}`);
-        console.log(`   API Base URL: ${mergedFrontendEnv.VITE_API_BASE_URL}`);
-        console.log(`   WebSocket URL: ${mergedFrontendEnv.VITE_WEBSOCKET_URL}`);
-        console.log(`   CORS Origin: ${mergedBackendEnv.CORS_ORIGIN}`);
+        console.log(`- Backend Port: ${mergedBackendEnv.PORT || mergedBackendEnv.BACKEND_PORT || '3001'}`);
+        console.log(`- Frontend Port: ${rootEnv.FRONTEND_PORT || '5173'}`);
+        console.log(`- API Base URL: ${mergedFrontendEnv.VITE_API_BASE_URL}`);
+        console.log(`- WebSocket URL: ${mergedFrontendEnv.VITE_WEBSOCKET_URL}`);
+        console.log(`- CORS Origin: ${mergedBackendEnv.CORS_ORIGIN}`);
         
         process.exit(0);
     } else {
