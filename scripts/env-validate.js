@@ -28,8 +28,8 @@ function loadEnv(filePath) {
 }
 
 function validateBackendConfig(env) {
-    const required = ['PORT', 'BACKEND_URL', 'FRONTEND_URL', 'CORS_ORIGIN'];
-    const missing = required.filter(key => !env[key] && !env[`BACKEND_${key}`]);
+    const required = ['BACKEND_PORT', 'BACKEND_HOST', 'BACKEND_URL', 'CORS_ORIGIN', 'API_BASE_URL', 'WEBSOCKET_URL'];
+    const missing = required.filter(key => !env[key]);
     
     if (missing.length > 0) {
         console.log('Backend missing required variables:', missing.join(', '));
@@ -41,11 +41,11 @@ function validateBackendConfig(env) {
 }
 
 function validateFrontendConfig(env) {
-    const requiredVite = ['VITE_API_BASE_URL', 'VITE_WEBSOCKET_URL', 'VITE_BACKEND_URL'];
-    const missing = requiredVite.filter(key => !env[key]);
+    const required = ['FRONTEND_PORT', 'FRONTEND_HOST', 'FRONTEND_URL'];
+    const missing = required.filter(key => !env[key]);
     
     if (missing.length > 0) {
-        console.log('Frontend missing required VITE_ variables:', missing.join(', '));
+        console.log('Frontend missing required ariables:', missing.join(', '));
         return false;
     }
     
@@ -63,7 +63,7 @@ function main() {
     
     // Merge environments (backend inherits from root)
     const mergedBackendEnv = { ...rootEnv, ...backendEnv };
-    const mergedFrontendEnv = { ...frontendEnv };
+    const mergedFrontendEnv = { ...rootEnv, ...frontendEnv };
     
     // Validate configurations
     const backendValid = validateBackendConfig(mergedBackendEnv);
@@ -72,11 +72,11 @@ function main() {
     if (backendValid && frontendValid) {
         console.log('\nAll environment configurations are good!');
         // Display configuration summary
-        console.log(`- Backend Port: ${mergedBackendEnv.PORT || mergedBackendEnv.BACKEND_PORT || '3001'}`);
-        console.log(`- Frontend Port: ${rootEnv.FRONTEND_PORT || '5173'}`);
-        console.log(`- API Base URL: ${mergedFrontendEnv.VITE_API_BASE_URL}`);
-        console.log(`- WebSocket URL: ${mergedFrontendEnv.VITE_WEBSOCKET_URL}`);
-        console.log(`- CORS Origin: ${mergedBackendEnv.CORS_ORIGIN}`);
+        console.log(`- Backend Port: ${mergedBackendEnv.BACKEND_PORT || '3001'}`);
+        console.log(`- Frontend Port: ${mergedFrontendEnv.FRONTEND_PORT || '5173'}`);
+        console.log(`- Backend API Base URL: ${mergedBackendEnv.API_BASE_URL}`);
+        console.log(`- Frontend Base URL: ${mergedFrontendEnv.FRONTEND_URL}`);
+        console.log(`- WebSocket URL: ${mergedBackendEnv.WEBSOCKET_URL}`);
         
         process.exit(0);
     } else {

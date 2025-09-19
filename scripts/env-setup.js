@@ -5,54 +5,80 @@
 
 const fs = require('fs');
 const path = require('path');
+const dotenv = require('dotenv');
 
-const rootDir = __dirname;
-const backendDir = path.join(rootDir, 'backend');
-const frontendDir = path.join(rootDir, 'frontend');
+const repoRoot = path.resolve(__dirname, '..');
+const locations = [
+  { name: 'root',     dir: repoRoot },
+  { name: 'backend',  dir: path.join(repoRoot, 'backend') },
+  { name: 'frontend', dir: path.join(repoRoot, 'frontend') },
+];
 
-function ensureEnvFile(dir, templateFile, targetFile) {
-    const templatePath = path.join(dir, templateFile);
-    const targetPath = path.join(dir, targetFile);
-    
-    if (!fs.existsSync(targetPath) && fs.existsSync(templatePath)) {
-        console.log(`Creating ${targetFile} from ${templateFile} in ${dir}`);
-        fs.copyFileSync(templatePath, targetPath);
-        return true;
-    }
-    return false;
+function loadEnvFile(filepath) {
+  if (!fs.existsSync(filepath)) return {};
+  try {
+    return dotenv.parse(fs.readFileSync(filepath, 'utf8'));
+  } catch (e) {
+    console.warn(`Could not parse ${filepath}: ${e.message}`);
+    return {};
+  }
+}
+
+function writeEnvFile(filepath, dataObj) {
+  const lines = Object.entries(dataObj).map(([k, v]) => `${k}=${v}`);
+  fs.writeFileSync(filepath, lines.join('\n') + '\n', 'utf8');
+}
+
+function ensureAndMerge({ name, dir }) {
+  const templatePath = path.join(dir, '.env.example');
+  const targetPath   = path.join(dir, '.env');
+
+  if (!fs.existsSync(dir)) {
+    console.log(`[skip] ${name}: directory does not exist (${dir})`);
+    return;
+  }
+
+  if (!fs.existsSync(templatePath)) {
+    console.log(`[warn] ${name}: no .env.example found (${templatePath})`);
+    return;
+  }
+
+  if (!fs.existsSync(targetPath)) {
+    fs.copyFileSync(templatePath, targetPath);
+    console.log(`[create] ${name}: created .env from .env.example`);
+    return;
+  }
+
+  // Merge new keys
+  const templateVars = loadEnvFile(templatePath);
+  const currentVars  = loadEnvFile(targetPath);
+
+  const missingKeys = Object.keys(templateVars).filter(k => !(k in currentVars));
+
+  if (missingKeys.length === 0) {
+    console.log(`[ok] ${name}: .env up to date`);
+    return;
+  }
+
+  // Append missing keys with template values
+  let appended = '';
+  missingKeys.forEach(k => {
+    currentVars[k] = templateVars[k];
+    appended += `  + ${k}\n`;
+  });
+
+  writeEnvFile(targetPath, currentVars);
+  console.log(`[merge] ${name}: added missing keys:\n${appended.trimEnd()}`);
 }
 
 function main() {
-    console.log('Setting up environment configuration...\n');
-    
-    // Ensure root .env exists
-    const created = [];
-    
-    if (ensureEnvFile(rootDir, '.env.example', '.env')) {
-        created.push('Root .env');
-    }
-    
-    // Ensure backend .env exists
-    if (ensureEnvFile(backendDir, '.env.example', '.env')) {
-        created.push('Backend .env');
-    }
-    
-    // Ensure frontend .env exists (if example exists)
-    if (fs.existsSync(path.join(frontendDir, '.env.example'))) {
-        if (ensureEnvFile(frontendDir, '.env.example', '.env')) {
-            created.push('Frontend .env');
-        }
-    }
-    
-    if (created.length > 0) {
-        console.log('Created environment files:');
-        created.forEach(file => console.log(`   - ${file}`));
-        console.log('\nPlease review and update the environment variables as needed.\n');
-    } else {
-        console.log('All environment files already exist.\n');
-    }
-    
-    console.log('Environment setup complete!');
+  console.log('--- Environment Setup Start ---');
+  console.log(`Repo root resolved to: ${repoRoot}\n`);
+
+  locations.forEach(ensureAndMerge);
+
+  console.log('\nEnvironment setup complete.');
+  console.log('--------------------------------');
 }
 
 main();

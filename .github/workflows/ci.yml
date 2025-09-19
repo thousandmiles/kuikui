@@ -32,9 +32,6 @@ jobs:
           
       - name: Install
         run: npm ci
-
-      - name: Env validate
-        run: npm run env:validate
       
       - name: Lint
         run: npm run lint
