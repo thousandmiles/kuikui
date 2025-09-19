@@ -7,7 +7,8 @@ module.exports = {
     extends: [
         'eslint:recommended',
         'plugin:@typescript-eslint/recommended',
-        'plugin:@typescript-eslint/recommended-requiring-type-checking'
+        'plugin:@typescript-eslint/recommended-requiring-type-checking',
+        'prettier'
     ],
     parser: '@typescript-eslint/parser',
     parserOptions: {
@@ -15,12 +16,36 @@ module.exports = {
         sourceType: 'module',
         project: ['./tsconfig.json']
     },
-    plugins: ['@typescript-eslint'],
+    plugins: ['@typescript-eslint', 'prettier'],
     rules: {
-        '@typescript-eslint/no-unused-vars': 'error',
+        // Prettier integration
+        'prettier/prettier': 'error',
+        
+        // TypeScript rules
+        '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
         '@typescript-eslint/no-explicit-any': 'warn',
+        '@typescript-eslint/no-floating-promises': 'error',
+        '@typescript-eslint/await-thenable': 'error',
+        '@typescript-eslint/no-misused-promises': 'error',
+        '@typescript-eslint/prefer-nullish-coalescing': 'error',
+        '@typescript-eslint/prefer-optional-chain': 'error',
+        '@typescript-eslint/prefer-readonly': 'error',
+        '@typescript-eslint/no-unnecessary-condition': 'warn',
+        
+        // General code quality
         'prefer-const': 'error',
         'no-console': 'warn',
+        'no-debugger': 'error',
+        'no-var': 'error',
+        'object-shorthand': 'error',
+        'prefer-arrow-callback': 'error',
+        'prefer-template': 'error',
+        'eqeqeq': ['error', 'always'],
+        'curly': ['error', 'all'],
+        
+        // Async/Promise rules
+        'require-await': 'error',
+        'no-return-await': 'error',
     },
-    ignorePatterns: ['dist', 'node_modules'],
+    ignorePatterns: ['dist', 'node_modules', '*.js'],
 };
