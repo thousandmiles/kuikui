@@ -1,0 +1,47 @@
+backend:
+  - "backend/**"
+  - "backend/package.json"
+  - "backend/package-lock.json"
+  - "backend/tsconfig.json"
+
+frontend:
+  - "frontend/**"
+  - "frontend/package.json"
+  - "frontend/package-lock.json"
+  - "frontend/vite.config.*"
+  - "frontend/tailwind.config.*"
+  - "frontend/postcss.config.*"
+
+shared-root:
+  - "package.json"
+  - "package-lock.json"
+  - "scripts/**"
+
+tests:
+  - any:
+      - "**/*.test.[jt]s"
+      - "**/*.spec.[jt]s"
+      - "**/__tests__/**"
+
+config:
+  - ".editorconfig"
+  - ".prettierrc*"
+  - ".eslint*"
+  - "**/.eslintrc.*"
+  - "**/.prettierrc.*"
+  - "backend/.eslintrc.*"
+  - "frontend/.eslintrc.*"
+
+docs:
+  - "**/*.md"
+  - "README.md"
+
+ci:
+  - ".github/workflows/**"
+
+security:
+  - ".github/workflows/security-*.yml"
+  - "Dockerfile"
+  - "**/package-lock.json"
+ts:
+  - "**/tsconfig*.json"
