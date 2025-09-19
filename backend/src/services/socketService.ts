@@ -1,13 +1,7 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import { roomService } from '../services/roomService';
-import {
-  User,
-  ChatMessage,
-  JoinRoomRequest,
-  JoinRoomResponse,
-  SocketEvents,
-} from '../types';
+import { User, ChatMessage, JoinRoomRequest, JoinRoomResponse } from '../types';
 
 export function setupSocketHandlers(io: SocketIOServer) {
   io.on('connection', (socket: Socket) => {
@@ -53,7 +47,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         }
 
         // Join socket room
-        socket.join(roomId);
+        void socket.join(roomId);
         currentUserId = userId;
         currentRoomId = roomId;
 

@@ -27,6 +27,12 @@ export interface CreateRoomResponse {
   roomLink: string;
 }
 
+export interface CreateRoomErrorResponse {
+  roomId: string;
+  roomLink: string;
+  error: string;
+}
+
 export interface JoinRoomRequest {
   roomId: string;
   nickname: string;
@@ -37,24 +43,4 @@ export interface JoinRoomResponse {
   users: User[];
   messages: ChatMessage[];
   error?: string;
-}
-
-export interface SocketEvents {
-  // Client to server
-  'join-room': (data: JoinRoomRequest) => void;
-  'send-message': (data: { content: string }) => void;
-  'user-typing': (data: { isTyping: boolean }) => void;
-  disconnect: () => void;
-
-  // Server to client
-  'room-joined': (data: JoinRoomResponse) => void;
-  'user-joined': (user: User) => void;
-  'user-left': (userId: string) => void;
-  'new-message': (message: ChatMessage) => void;
-  'user-typing-status': (data: {
-    userId: string;
-    nickname: string;
-    isTyping: boolean;
-  }) => void;
-  error: (data: { message: string }) => void;
 }
