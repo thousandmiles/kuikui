@@ -13,6 +13,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "loglevel": "^1.9.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.15.0",
@@ -20,6 +21,7 @@
     "uuid": "^9.0.0"
   },
   "devDependencies": {
+    "@types/loglevel": "^1.5.4",
     "@types/node": "^24.5.1",
     "@types/react": "^18.3.24",
     "@types/react-dom": "^18.3.7",
