@@ -28,6 +28,24 @@ class RoomService {
     return this.rooms.has(roomId);
   }
 
+  isNicknameAvailable(roomId: string, nickname: string): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return false;
+    }
+
+    const normalizedNickname = nickname.trim().toLowerCase();
+
+    // Check if any user in the room has the same nickname (case-insensitive)
+    for (const user of room.users.values()) {
+      if (user.nickname.toLowerCase() === normalizedNickname) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   addUserToRoom(roomId: string, user: User): boolean {
     const room = this.rooms.get(roomId);
     if (!room) {

@@ -30,6 +30,15 @@ export function setupSocketHandlers(io: SocketIOServer) {
           return;
         }
 
+        // Check if nickname is available in this room
+        if (!roomService.isNicknameAvailable(roomId, nickname.trim())) {
+          socket.emit('error', {
+            message:
+              'This nickname is already taken in this room. Please choose a different one.',
+          });
+          return;
+        }
+
         // Create user object
         const userId = uuidv4();
         const user: User = {
