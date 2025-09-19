@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Log files
+*.log
+logs/
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# Cache directories
+.cache/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Generated files
+*.d.ts.map
+*.js.map
+
+# Package manager files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# IDE files that shouldn't be formatted
+.vscode/
+.idea/
+
+# Config files that need specific formatting
+.eslintrc.*
+vite.config.*
+tailwind.config.*
+postcss.config.*

@@ -1,65 +1,74 @@
 import { Router, Request, Response } from 'express';
 import { roomService } from '../services/roomService';
-import { CreateRoomResponse } from '../types';
+import { CreateRoomErrorResponse } from '../types';
 import { backendConfig } from '../config/environment';
+import logger from '../utils/logger';
 
 const router = Router();
 
 // POST /api/create-room
-router.post('/create-room', (req: Request, res: Response<CreateRoomResponse>) => {
-    console.log('POST /api/create-room - Request received');
-    try {
-        const roomId = roomService.createRoom();
-        console.log('Room created with ID:', roomId);
-        
-        // Use configured frontend URL
-        const roomLink = `${backendConfig.FRONTEND_URL}/room/${roomId}`;
-        console.log('Generated room link:', roomLink);
+router.post('/create-room', (req: Request, res: Response): void => {
+  try {
+    const roomId = roomService.createRoom();
 
-        const response = {
-            roomId,
-            roomLink
-        };
-        
-        console.log('Sending response:', response);
-        res.status(201).json(response);
-    } catch (error) {
-        console.error('Error creating room:', error);
-        res.status(500).json({
-            roomId: '',
-            roomLink: '',
-            error: 'Failed to create room'
-        } as any);
-    }
+    // Use configured frontend URL
+    const roomLink = `${backendConfig.FRONTEND_URL}/room/${roomId}`;
+
+    const response = {
+      roomId,
+      roomLink,
+    };
+
+    res.status(201).json(response);
+  } catch (error) {
+    logger.error('Error creating room', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    const errorResponse: CreateRoomErrorResponse = {
+      roomId: '',
+      roomLink: '',
+      error: 'Failed to create room',
+    };
+    res.status(500).json(errorResponse);
+  }
 });
 
 // GET /api/room/:roomId/exists
 router.get('/room/:roomId/exists', (req: Request, res: Response) => {
-    try {
-        const { roomId } = req.params;
-        
-        if (!roomId) {
-            return res.status(400).json({ error: 'Room ID is required' });
-        }
-        
-        const exists = roomService.roomExists(roomId);
+  try {
+    const { roomId } = req.params;
 
-        return res.json({ exists });
-    } catch (error) {
-        console.error('Error checking room:', error);
-        return res.status(500).json({ error: 'Failed to check room' });
+    if (!roomId) {
+      return res.status(400).json({ error: 'Room ID is required' });
     }
+
+    const exists = roomService.roomExists(roomId);
+
+    return res.json({ exists });
+  } catch (error) {
+    const roomIdParam = req.params.roomId;
+    logger.error('Error checking room', {
+      roomId: roomIdParam,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    return res.status(500).json({ error: 'Failed to check room' });
+  }
 });
 
 // GET /api/stats (for monitoring)
 router.get('/stats', (req: Request, res: Response) => {
-    try {
-        const stats = roomService.getStats();
-        res.json(stats);
-    } catch (error) {
-        console.error('Error getting stats:', error);
-        res.status(500).json({ error: 'Failed to get stats' });
-    }
+  try {
+    const stats = roomService.getStats();
+    res.json(stats);
+  } catch (error) {
+    logger.error('Error getting stats', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    res.status(500).json({ error: 'Failed to get stats' });
+  }
 });
 
 export default router;

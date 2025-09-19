@@ -1,119 +1,158 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Room, User, ChatMessage } from '../types';
+import logger from '../utils/logger';
 
 class RoomService {
-    private rooms = new Map<string, Room>();
+  private readonly rooms = new Map<string, Room>();
 
-    createRoom(): string {
-        const roomId = uuidv4();
-        const room: Room = {
-            id: roomId,
-            createdAt: new Date(),
-            lastActivity: new Date(),
-            users: new Map(),
-            messages: []
-        };
+  createRoom(): string {
+    const roomId = uuidv4();
+    const room: Room = {
+      id: roomId,
+      createdAt: new Date(),
+      lastActivity: new Date(),
+      users: new Map(),
+      messages: [],
+    };
 
-        this.rooms.set(roomId, room);
-        console.log(`Room created: ${roomId}`);
-        return roomId;
+    this.rooms.set(roomId, room);
+    logger.room('created', roomId);
+    return roomId;
+  }
+
+  getRoom(roomId: string): Room | undefined {
+    return this.rooms.get(roomId);
+  }
+
+  roomExists(roomId: string): boolean {
+    return this.rooms.has(roomId);
+  }
+
+  isNicknameAvailable(roomId: string, nickname: string): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return false;
     }
 
-    getRoom(roomId: string): Room | undefined {
-        return this.rooms.get(roomId);
+    const normalizedNickname = nickname.trim().toLowerCase();
+
+    // Check if any user in the room has the same nickname (case-insensitive)
+    for (const user of room.users.values()) {
+      if (user.nickname.toLowerCase() === normalizedNickname) {
+        return false;
+      }
     }
 
-    roomExists(roomId: string): boolean {
-        return this.rooms.has(roomId);
+    return true;
+  }
+
+  addUserToRoom(roomId: string, user: User): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return false;
     }
 
-    addUserToRoom(roomId: string, user: User): boolean {
-        const room = this.rooms.get(roomId);
-        if (!room) return false;
+    room.users.set(user.id, user);
+    room.lastActivity = new Date();
+    logger.info('User joined room', {
+      nickname: user.nickname,
+      roomId,
+      userId: user.id,
+    });
+    return true;
+  }
 
-        room.users.set(user.id, user);
-        room.lastActivity = new Date();
-        console.log(`User ${user.nickname} joined room ${roomId}`);
-        return true;
+  removeUserFromRoom(roomId: string, userId: string): User | undefined {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return undefined;
     }
 
-    removeUserFromRoom(roomId: string, userId: string): User | undefined {
-        const room = this.rooms.get(roomId);
-        if (!room) return undefined;
+    const user = room.users.get(userId);
+    if (user) {
+      room.users.delete(userId);
+      room.lastActivity = new Date();
+      logger.info('User left room', {
+        nickname: user.nickname,
+        roomId,
+        userId,
+      });
+    }
+    return user;
+  }
 
-        const user = room.users.get(userId);
-        if (user) {
-            room.users.delete(userId);
-            room.lastActivity = new Date();
-            console.log(`User ${user.nickname} left room ${roomId}`);
-        }
-        return user;
+  getUsersInRoom(roomId: string): User[] {
+    const room = this.rooms.get(roomId);
+    return room ? Array.from(room.users.values()) : [];
+  }
+
+  addMessage(roomId: string, message: ChatMessage): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return false;
     }
 
-    getUsersInRoom(roomId: string): User[] {
-        const room = this.rooms.get(roomId);
-        return room ? Array.from(room.users.values()) : [];
+    room.messages.push(message);
+    room.lastActivity = new Date();
+
+    // Keep only last 100 messages to prevent memory issues
+    if (room.messages.length > 100) {
+      room.messages = room.messages.slice(-100);
     }
 
-    addMessage(roomId: string, message: ChatMessage): boolean {
-        const room = this.rooms.get(roomId);
-        if (!room) return false;
+    return true;
+  }
 
-        room.messages.push(message);
-        room.lastActivity = new Date();
+  getMessages(roomId: string): ChatMessage[] {
+    const room = this.rooms.get(roomId);
+    return room ? room.messages : [];
+  }
 
-        // Keep only last 100 messages to prevent memory issues
-        if (room.messages.length > 100) {
-            room.messages = room.messages.slice(-100);
-        }
-
-        return true;
+  updateUserStatus(roomId: string, userId: string, isOnline: boolean): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return false;
     }
 
-    getMessages(roomId: string): ChatMessage[] {
-        const room = this.rooms.get(roomId);
-        return room ? room.messages : [];
+    const user = room.users.get(userId);
+    if (!user) {
+      return false;
     }
 
-    updateUserStatus(roomId: string, userId: string, isOnline: boolean): boolean {
-        const room = this.rooms.get(roomId);
-        if (!room) return false;
+    user.isOnline = isOnline;
+    room.lastActivity = new Date();
+    return true;
+  }
 
-        const user = room.users.get(userId);
-        if (!user) return false;
+  // Clean up expired rooms (to be called periodically)
+  cleanupExpiredRooms(expiryHours: number = 24): number {
+    const now = new Date();
+    const expiryTime = expiryHours * 60 * 60 * 1000; // Convert to milliseconds
+    let deletedCount = 0;
 
-        user.isOnline = isOnline;
-        room.lastActivity = new Date();
-        return true;
+    for (const [roomId, room] of this.rooms.entries()) {
+      const timeSinceLastActivity = now.getTime() - room.lastActivity.getTime();
+
+      if (timeSinceLastActivity > expiryTime || room.users.size === 0) {
+        this.rooms.delete(roomId);
+        deletedCount++;
+        logger.room('deleted (expired)', roomId);
+      }
     }
 
-    // Clean up expired rooms (to be called periodically)
-    cleanupExpiredRooms(expiryHours: number = 24): number {
-        const now = new Date();
-        const expiryTime = expiryHours * 60 * 60 * 1000; // Convert to milliseconds
-        let deletedCount = 0;
+    return deletedCount;
+  }
 
-        for (const [roomId, room] of this.rooms.entries()) {
-            const timeSinceLastActivity = now.getTime() - room.lastActivity.getTime();
+  // Get room statistics
+  getStats() {
+    const totalRooms = this.rooms.size;
+    const totalUsers = Array.from(this.rooms.values()).reduce(
+      (sum, room) => sum + room.users.size,
+      0
+    );
 
-            if (timeSinceLastActivity > expiryTime || room.users.size === 0) {
-                this.rooms.delete(roomId);
-                deletedCount++;
-                console.log(`Deleted expired room: ${roomId}`);
-            }
-        }
-
-        return deletedCount;
-    }
-
-    // Get room statistics
-    getStats() {
-        const totalRooms = this.rooms.size;
-        const totalUsers = Array.from(this.rooms.values())
-            .reduce((sum, room) => sum + room.users.size, 0);
-
-        return { totalRooms, totalUsers };
-    }
+    return { totalRooms, totalUsers };
+  }
 }
 
 export const roomService = new RoomService();
