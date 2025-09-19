@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/apiService';
+import logger from '../utils/logger.js';
 
 const HomePage: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
@@ -17,7 +18,9 @@ const HomePage: React.FC = () => {
       setRoomLink(response.roomLink);
     } catch (err) {
       setError('Failed to create room. Please try again.');
-      console.error(err);
+      logger.error('Failed to create room', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     } finally {
       setIsCreating(false);
     }
@@ -35,7 +38,10 @@ const HomePage: React.FC = () => {
       await navigator.clipboard.writeText(roomLink);
       alert('Room link copied to clipboard!');
     } catch (err) {
-      console.error('Failed to copy link:', err);
+      logger.error('Failed to copy link to clipboard', {
+        error: err instanceof Error ? err.message : String(err),
+        roomLink,
+      });
     }
   };
 

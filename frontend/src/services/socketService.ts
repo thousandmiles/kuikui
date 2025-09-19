@@ -7,6 +7,7 @@ import {
   TypingStatus,
 } from '../types/index.js';
 import { frontendConfig } from '../config/environment.js';
+import logger from '../utils/logger.js';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -15,10 +16,9 @@ class SocketService {
 
   constructor() {
     this.defaultServerUrl = frontendConfig.WEBSOCKET_URL;
-    console.log(
-      'SocketService initialized with WebSocket URL:',
-      this.defaultServerUrl
-    );
+    logger.socket('initialized', 'SocketService with WebSocket URL', {
+      url: this.defaultServerUrl,
+    });
   }
 
   connect(serverUrl?: string): Promise<void> {
@@ -31,17 +31,20 @@ class SocketService {
         });
 
         this.socket.on('connect', () => {
-          console.log('Connected to server');
+          logger.socket('connect', 'Connected to server');
           resolve();
         });
 
         this.socket.on('connect_error', error => {
-          console.error('Connection error:', error);
+          logger.error('Socket connection error', {
+            error: error instanceof Error ? error.message : String(error),
+            url,
+          });
           reject(error);
         });
 
         this.socket.on('disconnect', () => {
-          console.log('Disconnected from server');
+          logger.socket('disconnect', 'Disconnected from server');
         });
 
         // Set up event listeners

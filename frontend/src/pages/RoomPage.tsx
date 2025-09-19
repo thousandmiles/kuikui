@@ -5,6 +5,7 @@ import { apiService } from '../services/apiService';
 import { User, ChatMessage, TypingStatus } from '../types/index';
 import UserList from '../components/UserList';
 import ChatArea from '../components/ChatArea';
+import logger from '../utils/logger.js';
 
 const RoomPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
@@ -34,7 +35,10 @@ const RoomPage: React.FC = () => {
         }
       } catch (err) {
         setError('Failed to verify room');
-        console.error(err);
+        logger.error('Failed to verify room', {
+          error: err instanceof Error ? err.message : String(err),
+          roomId,
+        });
       }
     };
 
@@ -66,13 +70,17 @@ const RoomPage: React.FC = () => {
           existingUser => existingUser.id === user.id
         );
         if (userExists) {
-          console.warn(
-            'User already exists in the list, skipping duplicate:',
-            user.nickname
-          );
+          logger.warn('User already exists in the list, skipping duplicate', {
+            nickname: user.nickname,
+            userId: user.id,
+            roomId,
+          });
           return prev;
         }
-        console.log('Adding new user to list:', user.nickname);
+        logger.component('RoomPage', 'Adding new user to list', {
+          nickname: user.nickname,
+          userId: user.id,
+        });
         return [...prev, user];
       });
     };
@@ -139,7 +147,11 @@ const RoomPage: React.FC = () => {
     } catch (err) {
       setError('Failed to connect to server');
       setIsConnecting(false);
-      console.error(err);
+      logger.error('Failed to connect to server', {
+        error: err instanceof Error ? err.message : String(err),
+        roomId,
+        nickname: nickname.trim(),
+      });
     }
   };
 
@@ -148,7 +160,11 @@ const RoomPage: React.FC = () => {
       socketService.sendMessage(content);
     } catch (err) {
       setError('Failed to send message');
-      console.error(err);
+      logger.error('Failed to send message', {
+        error: err instanceof Error ? err.message : String(err),
+        roomId,
+        messageLength: content.length,
+      });
     }
   };
 
@@ -156,7 +172,11 @@ const RoomPage: React.FC = () => {
     try {
       socketService.sendTypingStatus(isTyping);
     } catch (err) {
-      console.error('Failed to send typing status:', err);
+      logger.error('Failed to send typing status', {
+        error: err instanceof Error ? err.message : String(err),
+        roomId,
+        isTyping,
+      });
     }
   };
 

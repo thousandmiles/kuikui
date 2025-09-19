@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { roomService } from '../services/roomService';
 import { CreateRoomErrorResponse } from '../types';
 import { backendConfig } from '../config/environment';
+import logger from '../utils/logger';
 
 const router = Router();
 
@@ -20,8 +21,10 @@ router.post('/create-room', (req: Request, res: Response): void => {
 
     res.status(201).json(response);
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('Error creating room:', error);
+    logger.error('Error creating room', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     const errorResponse: CreateRoomErrorResponse = {
       roomId: '',
       roomLink: '',
@@ -44,7 +47,12 @@ router.get('/room/:roomId/exists', (req: Request, res: Response) => {
 
     return res.json({ exists });
   } catch (error) {
-    console.error('Error checking room:', error);
+    const roomIdParam = req.params.roomId;
+    logger.error('Error checking room', {
+      roomId: roomIdParam,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return res.status(500).json({ error: 'Failed to check room' });
   }
 });
@@ -55,7 +63,10 @@ router.get('/stats', (req: Request, res: Response) => {
     const stats = roomService.getStats();
     res.json(stats);
   } catch (error) {
-    console.error('Error getting stats:', error);
+    logger.error('Error getting stats', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     res.status(500).json({ error: 'Failed to get stats' });
   }
 });

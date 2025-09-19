@@ -1,12 +1,13 @@
 import { CreateRoomResponse } from '../types/index.js';
 import { frontendConfig } from '../config/environment.js';
+import logger from '../utils/logger.js';
 
 class ApiService {
   private readonly baseUrl: string;
 
   constructor() {
     this.baseUrl = frontendConfig.API_BASE_URL;
-    console.log('ApiService initialized with base URL:', this.baseUrl);
+    logger.api('GET', 'initialized', undefined, undefined);
   }
 
   async createRoom(): Promise<CreateRoomResponse> {
@@ -24,7 +25,10 @@ class ApiService {
 
       return await response.json();
     } catch (error) {
-      console.error('Error creating room:', error);
+      logger.error('Error creating room', {
+        error: error instanceof Error ? error.message : String(error),
+        endpoint: '/create-room',
+      });
       throw error;
     }
   }
@@ -40,7 +44,11 @@ class ApiService {
       const data = await response.json();
       return data.exists;
     } catch (error) {
-      console.error('Error checking room:', error);
+      logger.error('Error checking room', {
+        error: error instanceof Error ? error.message : String(error),
+        roomId,
+        endpoint: `/room/${roomId}/exists`,
+      });
       throw error;
     }
   }
@@ -55,7 +63,10 @@ class ApiService {
 
       return await response.json();
     } catch (error) {
-      console.error('Error getting stats:', error);
+      logger.error('Error getting stats', {
+        error: error instanceof Error ? error.message : String(error),
+        endpoint: '/stats',
+      });
       throw error;
     }
   }

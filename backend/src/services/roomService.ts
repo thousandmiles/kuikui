@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Room, User, ChatMessage } from '../types';
+import logger from '../utils/logger';
 
 class RoomService {
   private readonly rooms = new Map<string, Room>();
@@ -15,7 +16,7 @@ class RoomService {
     };
 
     this.rooms.set(roomId, room);
-    console.log(`Room created: ${roomId}`);
+    logger.room('created', roomId);
     return roomId;
   }
 
@@ -35,7 +36,11 @@ class RoomService {
 
     room.users.set(user.id, user);
     room.lastActivity = new Date();
-    console.log(`User ${user.nickname} joined room ${roomId}`);
+    logger.info('User joined room', {
+      nickname: user.nickname,
+      roomId,
+      userId: user.id,
+    });
     return true;
   }
 
@@ -49,7 +54,11 @@ class RoomService {
     if (user) {
       room.users.delete(userId);
       room.lastActivity = new Date();
-      console.log(`User ${user.nickname} left room ${roomId}`);
+      logger.info('User left room', {
+        nickname: user.nickname,
+        roomId,
+        userId,
+      });
     }
     return user;
   }
@@ -109,7 +118,7 @@ class RoomService {
       if (timeSinceLastActivity > expiryTime || room.users.size === 0) {
         this.rooms.delete(roomId);
         deletedCount++;
-        console.log(`Deleted expired room: ${roomId}`);
+        logger.room('deleted (expired)', roomId);
       }
     }
 

@@ -2,10 +2,11 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import { roomService } from '../services/roomService';
 import { User, ChatMessage, JoinRoomRequest, JoinRoomResponse } from '../types';
+import logger from '../utils/logger';
 
 export function setupSocketHandlers(io: SocketIOServer) {
   io.on('connection', (socket: Socket) => {
-    console.log(`User connected: ${socket.id}`);
+    logger.socket('user connected', socket.id);
 
     let currentUserId: string | null = null;
     let currentRoomId: string | null = null;
@@ -66,9 +67,20 @@ export function setupSocketHandlers(io: SocketIOServer) {
         // Notify other users in the room
         socket.to(roomId).emit('user-joined', user);
 
-        console.log(`User ${nickname} joined room ${roomId}`);
+        logger.info('User joined room via socket', {
+          nickname,
+          roomId,
+          userId: user.id,
+          socketId: socket.id,
+        });
       } catch (error) {
-        console.error('Error joining room:', error);
+        const { roomId: roomIdParam, nickname: nicknameParam } = data;
+        logger.error('Error joining room', {
+          error: error instanceof Error ? error.message : String(error),
+          roomId: roomIdParam,
+          nickname: nicknameParam,
+          socketId: socket.id,
+        });
         socket.emit('error', { message: 'Failed to join room' });
       }
     });
@@ -110,11 +122,19 @@ export function setupSocketHandlers(io: SocketIOServer) {
         // Broadcast message to all users in the room
         io.to(currentRoomId).emit('new-message', message);
 
-        console.log(
-          `Message sent in room ${currentRoomId} by ${user.nickname}`
-        );
+        logger.info('Message sent', {
+          roomId: currentRoomId,
+          userId: currentUserId,
+          nickname: user.nickname,
+          messageId: message.id,
+        });
       } catch (error) {
-        console.error('Error sending message:', error);
+        logger.error('Error sending message', {
+          error: error instanceof Error ? error.message : String(error),
+          roomId: currentRoomId,
+          userId: currentUserId,
+          socketId: socket.id,
+        });
         socket.emit('error', { message: 'Failed to send message' });
       }
     });
@@ -139,14 +159,19 @@ export function setupSocketHandlers(io: SocketIOServer) {
           isTyping: data.isTyping,
         });
       } catch (error) {
-        console.error('Error handling typing status:', error);
+        logger.error('Error handling typing status', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
       }
     });
 
     // Handle disconnection
     socket.on('disconnect', () => {
       try {
-        console.log(`User disconnected: ${socket.id}`);
+        logger.socket('user disconnected', socket.id);
 
         if (currentUserId && currentRoomId) {
           // Remove user from room
@@ -158,11 +183,21 @@ export function setupSocketHandlers(io: SocketIOServer) {
           if (user) {
             // Notify other users in the room
             socket.to(currentRoomId).emit('user-left', currentUserId);
-            console.log(`User ${user.nickname} left room ${currentRoomId}`);
+            logger.info('User left room on disconnect', {
+              nickname: user.nickname,
+              roomId: currentRoomId,
+              userId: currentUserId,
+              socketId: socket.id,
+            });
           }
         }
       } catch (error) {
-        console.error('Error handling disconnect:', error);
+        logger.error('Error handling disconnect', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
       }
     });
   });
@@ -172,7 +207,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
     () => {
       const deletedCount = roomService.cleanupExpiredRooms(24);
       if (deletedCount > 0) {
-        console.log(`Cleaned up ${deletedCount} expired rooms`);
+        logger.info('Cleaned up expired rooms', { deletedCount });
       }
     },
     60 * 60 * 1000

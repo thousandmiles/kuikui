@@ -2,6 +2,8 @@
  * Frontend environment configuration for kuikui
  */
 
+import logger from '../utils/logger.js';
+
 export interface FrontendConfig {
   NODE_ENV: 'development' | 'production' | 'test';
   API_BASE_URL: string;
@@ -55,10 +57,10 @@ export async function validateBackendConnection(
     clearTimeout(timeoutId);
     return response.ok;
   } catch (error) {
-    console.warn(
-      `Failed to connect to backend at ${config.BACKEND_URL}:`,
-      error
-    );
+    logger.warn(`Failed to connect to backend at ${config.BACKEND_URL}`, {
+      error: error instanceof Error ? error.message : String(error),
+      backendUrl: config.BACKEND_URL,
+    });
     return false;
   }
 }
