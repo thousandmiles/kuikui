@@ -334,7 +334,11 @@ const RoomPage: React.FC = () => {
       </header>
 
       <div className='flex-1 flex overflow-hidden'>
-        <UserList users={users} typingUsers={typingUsers} />
+        <UserList
+          users={users}
+          typingUsers={typingUsers}
+          currentUserId={currentUserRef.current?.id}
+        />
         <ChatArea
           messages={messages}
           onSendMessage={handleSendMessage}
