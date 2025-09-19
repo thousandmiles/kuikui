@@ -22,6 +22,7 @@ const RoomPage: React.FC = () => {
   const [typingUsers, setTypingUsers] = useState<TypingStatus[]>([]);
   const [error, setError] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
+  const [copied, setCopied] = useState(false);
   const currentUserRef = useRef<User | null>(null);
 
   useEffect(() => {
@@ -49,6 +50,32 @@ const RoomPage: React.FC = () => {
 
     void checkRoom();
   }, [roomId, navigate]);
+
+  const handleCopyRoomId = async () => {
+    if (!roomId) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(roomId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
+    } catch (err) {
+      logger.error('Failed to copy room ID to clipboard', {
+        error: err instanceof Error ? err.message : String(err),
+        roomId,
+      });
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = roomId;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   useEffect(() => {
     // Define event handlers
@@ -258,7 +285,44 @@ const RoomPage: React.FC = () => {
         <div className='flex items-center justify-between'>
           <div>
             <h1 className='text-xl font-semibold text-gray-900'>kuikui</h1>
-            <p className='text-sm text-gray-600'>Room: {roomId}</p>
+            <div className='flex items-center group'>
+              <p className='text-sm text-gray-600'>Room: {roomId}</p>
+              <button
+                onClick={() => void handleCopyRoomId()}
+                className='ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1 rounded hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500'
+                title={copied ? 'Copied!' : 'Copy room ID'}
+              >
+                {copied ? (
+                  <svg
+                    className='w-4 h-4 text-green-600'
+                    fill='none'
+                    stroke='currentColor'
+                    viewBox='0 0 24 24'
+                  >
+                    <path
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      strokeWidth={2}
+                      d='M5 13l4 4L19 7'
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    className='w-4 h-4 text-gray-500'
+                    fill='none'
+                    stroke='currentColor'
+                    viewBox='0 0 24 24'
+                  >
+                    <path
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      strokeWidth={2}
+                      d='M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z'
+                    />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
           <button
             onClick={() => navigate('/')}
