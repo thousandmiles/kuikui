@@ -32,7 +32,10 @@ jobs:
           
       - name: Install
         run: npm ci
-
+        
+      - name: Env Setup
+        run: npm run env:setup
+        
       - name: Env validate
         run: npm run env:validate
       
