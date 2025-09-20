@@ -12,6 +12,8 @@ export interface Room {
   lastActivity: Date;
   users: User[];
   messages: ChatMessage[];
+  ownerId?: string;
+  ownerNickname?: string;
 }
 
 export interface ChatMessage {
@@ -38,6 +40,8 @@ export interface JoinRoomResponse {
   users: User[];
   messages: ChatMessage[];
   userId?: string; // The user's ID (new or existing)
+  ownerId?: string; // Room owner's user ID
+  ownerNickname?: string; // Room owner's nickname
   error?: string;
 }
 

@@ -68,16 +68,17 @@ export function setupSocketHandlers(io: SocketIOServer) {
             );
             void socket.join(roomId);
 
-            // No need to notify others since we're keeping the existing nickname
-
             // Send current room state to returning user
             const users = roomService.getUsersInRoom(roomId);
             const messages = roomService.getMessages(roomId);
+            const room = roomService.getRoom(roomId);
             const response: JoinRoomResponse = {
               success: true,
               users,
               messages,
               userId: existingUserId,
+              ownerId: room?.ownerId,
+              ownerNickname: room?.ownerNickname,
             };
             socket.emit('room-joined', response);
 
@@ -127,6 +128,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         // Get current room state
         const users = roomService.getUsersInRoom(roomId);
         const messages = roomService.getMessages(roomId);
+        const room = roomService.getRoom(roomId);
 
         // Send response to the joining user
         const response: JoinRoomResponse = {
@@ -134,6 +136,8 @@ export function setupSocketHandlers(io: SocketIOServer) {
           users,
           messages,
           userId, // Include the userId in the response
+          ownerId: room?.ownerId,
+          ownerNickname: room?.ownerNickname,
         };
         socket.emit('room-joined', response);
 

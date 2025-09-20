@@ -4,13 +4,25 @@ interface UserListProps {
   users: User[];
   typingUsers: TypingStatus[];
   currentUserId?: string;
+  ownerId?: string;
 }
 
 const UserList: React.FC<UserListProps> = ({
   users,
   typingUsers,
   currentUserId,
+  ownerId,
 }) => {
+  // Sort users to put owner first, then others
+  const sortedUsers = [...users].sort((a, b) => {
+    if (a.id === ownerId) {
+      return -1;
+    }
+    if (b.id === ownerId) {
+      return 1;
+    }
+    return 0;
+  });
   return (
     <div className='w-64 bg-white border-r border-gray-200 flex flex-col'>
       <div className='p-4 border-b border-gray-200'>
@@ -20,9 +32,10 @@ const UserList: React.FC<UserListProps> = ({
       </div>
 
       <div className='flex-1 overflow-y-auto p-2'>
-        {users.map(user => {
+        {sortedUsers.map(user => {
           const isTyping = typingUsers.some(t => t.userId === user.id);
           const isCurrentUser = user.id === currentUserId;
+          const isOwner = user.id === ownerId;
 
           return (
             <div
@@ -46,6 +59,11 @@ const UserList: React.FC<UserListProps> = ({
                   >
                     {user.nickname}
                   </p>
+                  {isOwner && (
+                    <span className='ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium'>
+                      owner
+                    </span>
+                  )}
                   {isCurrentUser && (
                     <span className='ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium'>
                       you

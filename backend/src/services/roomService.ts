@@ -119,6 +119,17 @@ class RoomService {
       return false;
     }
 
+    // If this is the first user in the room, make them the owner
+    if (room.users.size === 0) {
+      room.ownerId = user.id;
+      room.ownerNickname = user.nickname;
+      logger.info('Room owner set', {
+        roomId,
+        ownerId: user.id,
+        ownerNickname: user.nickname,
+      });
+    }
+
     room.users.set(user.id, user);
     room.lastActivity = new Date();
     logger.info('User joined room', {
