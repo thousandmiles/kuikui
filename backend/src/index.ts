@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import roomRoutes from './routes/rooms';
 import { setupSocketHandlers } from './services/socketService';
+import { roomService } from './services/roomService';
 import { backendConfig } from './config/environment';
 import logger from './utils/logger';
 
@@ -56,6 +57,17 @@ app.use('/api', roomRoutes);
 // Setup Socket.IO handlers
 setupSocketHandlers(io);
 
+// Setup periodic cleanup of expired rooms
+const cleanupInterval = setInterval(
+  () => {
+    const deletedCount = roomService.cleanupExpiredRooms(24);
+    if (deletedCount > 0) {
+      logger.info('Cleaned up expired rooms', { deletedCount });
+    }
+  },
+  60 * 60 * 1000
+); // Run every hour
+
 // Error handling middleware
 app.use(
   (
@@ -93,6 +105,7 @@ httpServer.listen(PORT, () => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down gracefully');
+  clearInterval(cleanupInterval);
   httpServer.close(() => {
     logger.info('Server closed');
     process.exit(0);
@@ -101,6 +114,7 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   logger.info('SIGINT received, shutting down gracefully');
+  clearInterval(cleanupInterval);
   httpServer.close(() => {
     logger.info('Server closed');
     process.exit(0);

@@ -210,20 +210,4 @@ export function setupSocketHandlers(io: SocketIOServer) {
       }
     });
   });
-
-  // Periodic cleanup of expired rooms
-  const cleanupInterval = setInterval(
-    () => {
-      const deletedCount = roomService.cleanupExpiredRooms(24);
-      if (deletedCount > 0) {
-        logger.info('Cleaned up expired rooms', { deletedCount });
-      }
-    },
-    60 * 60 * 1000
-  ); // Run every hour
-
-  // Clear interval on server shutdown
-  process.on('SIGTERM', () => {
-    clearInterval(cleanupInterval);
-  });
 }
