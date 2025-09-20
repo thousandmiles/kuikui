@@ -14,7 +14,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
     // Handle joining a room
     socket.on('join-room', (data: JoinRoomRequest) => {
       try {
-        const { roomId, nickname } = data;
+        const { roomId, nickname, userId: existingUserId } = data;
 
         // Validate input
         if (!roomId || !nickname.trim()) {
@@ -24,23 +24,84 @@ export function setupSocketHandlers(io: SocketIOServer) {
           return;
         }
 
-        // Check if room exists
+        // Check if the room exists
         if (!roomService.roomExists(roomId)) {
-          socket.emit('error', { message: 'Room does not exist' });
+          socket.emit('error', { message: 'Room not found' });
           return;
         }
 
-        // Check if nickname is available in this room
-        if (!roomService.isNicknameAvailable(roomId, nickname.trim())) {
+        // Handle returning user with existing userId
+        if (
+          existingUserId &&
+          roomService.isUserInRoom(roomId, existingUserId)
+        ) {
+          // User is returning to a room they were already in
+          const existingUser = roomService.getUserInRoom(
+            roomId,
+            existingUserId
+          );
+          if (existingUser) {
+            // Check if nickname conflicts with OTHER users (excluding self)
+            if (
+              !roomService.isNicknameAvailableForUser(
+                roomId,
+                nickname,
+                existingUserId
+              )
+            ) {
+              socket.emit('error', {
+                message: 'This nickname is already taken in this room',
+              });
+              return;
+            }
+
+            // Update existing user's nickname and socket
+            roomService.updateUserInRoom(
+              roomId,
+              existingUserId,
+              nickname,
+              socket.id
+            );
+            void socket.join(roomId);
+
+            // Notify others if nickname changed
+            if (existingUser.nickname !== nickname) {
+              socket.to(roomId).emit('user-updated', {
+                userId: existingUserId,
+                oldNickname: existingUser.nickname,
+                newNickname: nickname,
+              });
+            }
+
+            // Send current room state to returning user
+            const room = roomService.getRoom(roomId);
+            socket.emit('join-room-success', {
+              userId: existingUserId,
+              users: Array.from(room!.users.values()).map(user => ({
+                id: user.id,
+                nickname: user.nickname,
+              })),
+            });
+
+            logger.info(
+              `User ${nickname} (${existingUserId}) rejoined room ${roomId}`
+            );
+            return;
+          }
+        }
+
+        // Handle new user or user with new nickname
+        if (!roomService.isNicknameAvailable(roomId, nickname)) {
           socket.emit('error', {
-            message:
-              'This nickname is already taken in this room. Please choose a different one.',
+            message: 'This nickname is already taken in this room',
           });
           return;
         }
 
+        // Use existing userId or generate a new one
+        const userId = existingUserId ?? uuidv4();
+
         // Create user object
-        const userId = uuidv4();
         const user: User = {
           id: userId,
           nickname: nickname.trim(),
@@ -70,6 +131,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
           success: true,
           users,
           messages,
+          userId, // Include the userId in the response
         };
         socket.emit('room-joined', response);
 

@@ -46,6 +46,73 @@ class RoomService {
     return true;
   }
 
+  isNicknameAvailableForUser(
+    roomId: string,
+    nickname: string,
+    excludeUserId?: string
+  ): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return false;
+    }
+
+    const normalizedNickname = nickname.trim().toLowerCase();
+
+    // Check if any OTHER user in the room has the same nickname
+    for (const user of room.users.values()) {
+      if (
+        user.nickname.toLowerCase() === normalizedNickname &&
+        user.id !== excludeUserId
+      ) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  isUserInRoom(roomId: string, userId: string): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return false;
+    }
+
+    return room.users.has(userId);
+  }
+
+  getUserInRoom(roomId: string, userId: string): User | undefined {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return undefined;
+    }
+
+    return room.users.get(userId);
+  }
+
+  updateUserInRoom(
+    roomId: string,
+    userId: string,
+    nickname: string,
+    socketId: string
+  ): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return false;
+    }
+
+    const user = room.users.get(userId);
+    if (!user) {
+      return false;
+    }
+
+    // Update user properties
+    user.nickname = nickname.trim();
+    user.socketId = socketId;
+    user.isOnline = true;
+
+    return true;
+  }
+
   addUserToRoom(roomId: string, user: User): boolean {
     const room = this.rooms.get(roomId);
     if (!room) {

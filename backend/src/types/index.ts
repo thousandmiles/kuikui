@@ -36,11 +36,13 @@ export interface CreateRoomErrorResponse {
 export interface JoinRoomRequest {
   roomId: string;
   nickname: string;
+  userId?: string; // Optional: for user persistence across sessions
 }
 
 export interface JoinRoomResponse {
   success: boolean;
   users: User[];
   messages: ChatMessage[];
+  userId?: string; // The user's ID (new or existing)
   error?: string;
 }
