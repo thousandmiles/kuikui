@@ -40,9 +40,7 @@ const UserList: React.FC<UserListProps> = ({
           return (
             <div
               key={user.id}
-              className={`flex items-center p-2 rounded-lg hover:bg-gray-50 ${
-                isCurrentUser ? 'bg-blue-50 border border-blue-200' : ''
-              }`}
+              className='flex items-center p-2 rounded-lg hover:bg-gray-50'
             >
               <div
                 className={`w-3 h-3 rounded-full mr-3 ${
