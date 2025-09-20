@@ -55,36 +55,38 @@ export function setupSocketHandlers(io: SocketIOServer) {
               return;
             }
 
-            // Update existing user's nickname and socket
+            // For returning users, use the server's saved nickname instead of client's
+            // This prevents unexpected nickname changes since we don't provide rename UI
+            const serverNickname = existingUser.nickname;
+
+            // Update existing user's socket ID (keep server's nickname)
             roomService.updateUserInRoom(
               roomId,
               existingUserId,
-              nickname,
+              serverNickname,
               socket.id
             );
             void socket.join(roomId);
 
-            // Notify others if nickname changed
-            if (existingUser.nickname !== nickname) {
-              socket.to(roomId).emit('user-updated', {
-                userId: existingUserId,
-                oldNickname: existingUser.nickname,
-                newNickname: nickname,
-              });
-            }
+            // No need to notify others since we're keeping the existing nickname
 
             // Send current room state to returning user
-            const room = roomService.getRoom(roomId);
-            socket.emit('join-room-success', {
+            const users = roomService.getUsersInRoom(roomId);
+            const messages = roomService.getMessages(roomId);
+            const response: JoinRoomResponse = {
+              success: true,
+              users,
+              messages,
               userId: existingUserId,
-              users: Array.from(room!.users.values()).map(user => ({
-                id: user.id,
-                nickname: user.nickname,
-              })),
-            });
+            };
+            socket.emit('room-joined', response);
 
             logger.info(
-              `User ${nickname} (${existingUserId}) rejoined room ${roomId}`
+              `User ${serverNickname} (${existingUserId}) rejoined room ${roomId}${
+                nickname !== serverNickname
+                  ? ` (client sent ${nickname}, using server's ${serverNickname})`
+                  : ''
+              }`
             );
             return;
           }
