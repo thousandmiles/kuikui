@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { socketService } from '../services/socketService';
 import { apiService } from '../services/apiService';
+import { userPersistenceService } from '../services/userPersistenceService';
 import {
   User,
   ChatMessage,
@@ -31,13 +32,43 @@ const RoomPage: React.FC = () => {
       return;
     }
 
-    // Check if room exists
-    const checkRoom = async () => {
+    // Check if room exists and handle auto-rejoin
+    const checkRoomAndAutoRejoin = async () => {
       try {
         const exists = await apiService.checkRoomExists(roomId);
         if (!exists) {
           setError('Room does not exist');
           setTimeout(() => navigate('/'), 3000);
+          return;
+        }
+
+        // Check if user has a valid session for this room
+        const storedSession = userPersistenceService.getUserSession(roomId);
+        if (storedSession) {
+          // Auto-rejoin with stored session
+          setNickname(storedSession.nickname);
+          setIsConnecting(true);
+
+          try {
+            if (!socketService.isConnected()) {
+              await socketService.connect();
+            }
+
+            socketService.joinRoom(
+              roomId,
+              storedSession.nickname,
+              storedSession.userId
+            );
+          } catch (err) {
+            setError('Failed to reconnect to room');
+            setIsConnecting(false);
+            logger.error('Failed to auto-rejoin room', {
+              error: err instanceof Error ? err.message : String(err),
+              roomId,
+              userId: storedSession.userId,
+              nickname: storedSession.nickname,
+            });
+          }
         }
       } catch (err) {
         setError('Failed to verify room');
@@ -48,7 +79,7 @@ const RoomPage: React.FC = () => {
       }
     };
 
-    void checkRoom();
+    void checkRoomAndAutoRejoin();
   }, [roomId, navigate]);
 
   const handleCopyRoomId = async () => {
@@ -86,6 +117,15 @@ const RoomPage: React.FC = () => {
         setMessages(joinResponse.messages);
         setIsJoined(true);
         setError('');
+
+        // Store the complete user session for persistence across sessions
+        if (joinResponse.userId && roomId) {
+          userPersistenceService.setUserSession(
+            joinResponse.userId,
+            nickname,
+            roomId
+          );
+        }
 
         // Store current user (we'll get the user ID from the join response)
         currentUserRef.current =
@@ -180,7 +220,13 @@ const RoomPage: React.FC = () => {
         await socketService.connect();
       }
 
-      socketService.joinRoom(roomId, nickname.trim());
+      // This is for new users or users with expired sessions
+      // No stored userId should be used here - let backend generate a new one
+      socketService.joinRoom(
+        roomId,
+        nickname.trim(),
+        undefined // Always undefined for manual joins
+      );
     } catch (err) {
       setError('Failed to connect to server');
       setIsConnecting(false);
@@ -195,6 +241,8 @@ const RoomPage: React.FC = () => {
   const handleSendMessage = (content: string) => {
     try {
       socketService.sendMessage(content);
+      // Update activity timestamp to keep session fresh
+      userPersistenceService.updateLastActivity();
     } catch (err) {
       setError('Failed to send message');
       logger.error('Failed to send message', {
@@ -215,6 +263,12 @@ const RoomPage: React.FC = () => {
         isTyping,
       });
     }
+  };
+
+  const handleLeaveRoom = () => {
+    // Clear the stored session when explicitly leaving
+    userPersistenceService.clearUserSession();
+    navigate('/');
   };
 
   if (!roomId) {
@@ -268,7 +322,7 @@ const RoomPage: React.FC = () => {
 
           <div className='mt-6 text-center'>
             <button
-              onClick={() => navigate('/')}
+              onClick={handleLeaveRoom}
               className='text-blue-600 hover:text-blue-800 text-sm'
             >
               ← Back to Home
@@ -325,7 +379,7 @@ const RoomPage: React.FC = () => {
             </div>
           </div>
           <button
-            onClick={() => navigate('/')}
+            onClick={handleLeaveRoom}
             className='text-sm text-gray-600 hover:text-gray-800'
           >
             Leave Room
