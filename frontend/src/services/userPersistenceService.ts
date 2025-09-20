@@ -11,7 +11,7 @@ export interface StoredUserSession {
  * Service for managing user persistence across browser sessions
  */
 class UserPersistenceService {
-  private readonly USER_SESSION_KEY = 'kuikui_user_session';
+  private readonly SESSION_KEY_PREFIX = 'kuikui_session_';
   private readonly SESSION_EXPIRY_HOURS = 24; // Sessions expire after 24 hours
 
   // Legacy key for migration purposes
@@ -20,6 +20,13 @@ class UserPersistenceService {
   constructor() {
     // Clean up any legacy data on initialization
     this.cleanupLegacyData();
+  }
+
+  /**
+   * Generate a room-specific session key to isolate sessions between different rooms/windows
+   */
+  private getSessionKey(roomId: string): string {
+    return `${this.SESSION_KEY_PREFIX}${roomId}`;
   }
 
   /**
@@ -49,7 +56,8 @@ class UserPersistenceService {
         roomId,
         lastActivity: Date.now(),
       };
-      localStorage.setItem(this.USER_SESSION_KEY, JSON.stringify(session));
+      const sessionKey = this.getSessionKey(roomId);
+      localStorage.setItem(sessionKey, JSON.stringify(session));
     } catch (error) {
       logger.error('Failed to store user session in localStorage', {
         error: error instanceof Error ? error.message : String(error),
@@ -65,7 +73,30 @@ class UserPersistenceService {
    */
   getUserSession(currentRoomId?: string): StoredUserSession | null {
     try {
-      const sessionData = localStorage.getItem(this.USER_SESSION_KEY);
+      // If no roomId provided, try to find any session (for backward compatibility)
+      let sessionData: string | null = null;
+      let sessionKey: string;
+
+      if (currentRoomId) {
+        sessionKey = this.getSessionKey(currentRoomId);
+        sessionData = localStorage.getItem(sessionKey);
+      } else {
+        // Search for any session (when no specific room is requested)
+        const allKeys = Object.keys(localStorage);
+        const sessionKeys = allKeys.filter(key =>
+          key.startsWith(this.SESSION_KEY_PREFIX)
+        );
+
+        for (const key of sessionKeys) {
+          const data = localStorage.getItem(key);
+          if (data) {
+            sessionData = data;
+            sessionKey = key;
+            break;
+          }
+        }
+      }
+
       if (!sessionData) {
         return null;
       }
@@ -124,13 +155,22 @@ class UserPersistenceService {
    */
   updateLastActivity(): void {
     try {
-      const sessionData = localStorage.getItem(this.USER_SESSION_KEY);
-      if (sessionData) {
-        const parsed = JSON.parse(sessionData) as unknown;
-        if (this.isValidStoredUserSession(parsed)) {
-          const session = parsed;
-          session.lastActivity = Date.now();
-          localStorage.setItem(this.USER_SESSION_KEY, JSON.stringify(session));
+      // Find any existing session and update it
+      const allKeys = Object.keys(localStorage);
+      const sessionKeys = allKeys.filter(key =>
+        key.startsWith(this.SESSION_KEY_PREFIX)
+      );
+
+      for (const sessionKey of sessionKeys) {
+        const sessionData = localStorage.getItem(sessionKey);
+        if (sessionData) {
+          const parsed = JSON.parse(sessionData) as unknown;
+          if (this.isValidStoredUserSession(parsed)) {
+            const session = parsed;
+            session.lastActivity = Date.now();
+            localStorage.setItem(sessionKey, JSON.stringify(session));
+            return; // Update the first valid session found
+          }
         }
       }
     } catch (error) {
@@ -141,14 +181,29 @@ class UserPersistenceService {
   }
 
   /**
-   * Clear the stored user session
+   * Clear the stored user session for a specific room, or all sessions
    */
-  clearUserSession(): void {
+  clearUserSession(roomId?: string): void {
     try {
-      localStorage.removeItem(this.USER_SESSION_KEY);
+      if (roomId) {
+        // Clear specific room session
+        const sessionKey = this.getSessionKey(roomId);
+        localStorage.removeItem(sessionKey);
+      } else {
+        // Clear all sessions
+        const allKeys = Object.keys(localStorage);
+        const sessionKeys = allKeys.filter(key =>
+          key.startsWith(this.SESSION_KEY_PREFIX)
+        );
+
+        for (const sessionKey of sessionKeys) {
+          localStorage.removeItem(sessionKey);
+        }
+      }
     } catch (error) {
       logger.error('Failed to clear user session from localStorage', {
         error: error instanceof Error ? error.message : String(error),
+        roomId,
       });
     }
   }
@@ -166,6 +221,31 @@ class UserPersistenceService {
   getUserIdFromSession(): string | null {
     const session = this.getUserSession();
     return session ? session.userId : null;
+  }
+
+  /**
+   * Mark session as explicitly ended (user intentionally left)
+   * vs accidentally disconnected (browser crash, network issue)
+   */
+  markSessionAsEnded(): void {
+    try {
+      const session = this.getUserSession();
+      if (session) {
+        // Store a flag that this was an intentional leave
+        const endedSession = {
+          ...session,
+          intentionallyLeft: true,
+          endedAt: Date.now(),
+        };
+        const sessionKey = this.getSessionKey(session.roomId);
+        localStorage.setItem(sessionKey, JSON.stringify(endedSession));
+        logger.info('Marked session as intentionally ended');
+      }
+    } catch (error) {
+      logger.error('Failed to mark session as ended', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }
 

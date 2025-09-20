@@ -207,6 +207,42 @@ const RoomPage: React.FC = () => {
     };
   }, [nickname, roomId]);
 
+  // Handle browser close/refresh cleanup
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      // Don't clear session data on refresh/close - we want to preserve it for auto-rejoin
+      // Just ensure clean disconnect
+      if (socketService.isConnected()) {
+        socketService.disconnect();
+      }
+
+      // Optional: Show warning if user is in an active room
+      if (isJoined && messages.length > 0) {
+        event.preventDefault();
+        event.returnValue = 'Are you sure you want to leave the room?';
+        return 'Are you sure you want to leave the room?';
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // Page is hidden (tab switched, minimized, etc.)
+        // Update last activity timestamp to keep session fresh
+        if (isJoined) {
+          userPersistenceService.updateLastActivity();
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isJoined, messages.length]);
+
   const handleJoinRoom = async () => {
     if (!nickname.trim() || !roomId) {
       return;
@@ -266,8 +302,14 @@ const RoomPage: React.FC = () => {
   };
 
   const handleLeaveRoom = () => {
-    // Clear the stored session when explicitly leaving
-    userPersistenceService.clearUserSession();
+    // Mark session as intentionally ended before clearing
+    userPersistenceService.markSessionAsEnded();
+
+    // Clear the stored session when explicitly leaving (room-specific)
+    if (roomId) {
+      userPersistenceService.clearUserSession(roomId);
+    }
+
     navigate('/');
   };
 
