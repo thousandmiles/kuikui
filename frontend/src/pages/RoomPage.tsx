@@ -209,18 +209,11 @@ const RoomPage: React.FC = () => {
 
   // Handle browser close/refresh cleanup
   useEffect(() => {
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+    const handleBeforeUnload = () => {
       // Don't clear session data on refresh/close - we want to preserve it for auto-rejoin
       // Just ensure clean disconnect
       if (socketService.isConnected()) {
         socketService.disconnect();
-      }
-
-      // Optional: Show warning if user is in an active room
-      if (isJoined && messages.length > 0) {
-        event.preventDefault();
-        event.returnValue = 'Are you sure you want to leave the room?';
-        return 'Are you sure you want to leave the room?';
       }
     };
 
@@ -234,7 +227,10 @@ const RoomPage: React.FC = () => {
       }
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    // Only add the beforeunload listener if user is actually in a room
+    if (isJoined) {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+    }
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
@@ -422,7 +418,7 @@ const RoomPage: React.FC = () => {
           </div>
           <button
             onClick={handleLeaveRoom}
-            className='text-sm text-gray-600 hover:text-gray-800'
+            className='px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-red-500'
           >
             Leave Room
           </button>

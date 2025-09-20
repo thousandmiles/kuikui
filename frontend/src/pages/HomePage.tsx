@@ -7,6 +7,7 @@ const HomePage: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [roomLink, setRoomLink] = useState('');
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
   const handleCreateRoom = async () => {
@@ -36,12 +37,23 @@ const HomePage: React.FC = () => {
   const copyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(roomLink);
-      alert('Room link copied to clipboard!');
+      setCopied(true);
+      // Reset the copied state after 2 seconds
+      setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       logger.error('Failed to copy link to clipboard', {
         error: err instanceof Error ? err.message : String(err),
         roomLink,
       });
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = roomLink;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -93,9 +105,32 @@ const HomePage: React.FC = () => {
               />
               <button
                 onClick={() => void copyToClipboard()}
-                className='px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded transition duration-200'
+                className={`px-4 py-2 text-white text-sm rounded transition duration-200 ${
+                  copied
+                    ? 'bg-green-700 hover:bg-green-700'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
               >
-                Copy
+                {copied ? (
+                  <span className='flex items-center gap-1'>
+                    <svg
+                      className='w-4 h-4'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth={2}
+                        d='M5 13l4 4L19 7'
+                      />
+                    </svg>
+                    Copied!
+                  </span>
+                ) : (
+                  'Copy'
+                )}
               </button>
             </div>
             <button
