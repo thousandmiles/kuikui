@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/apiService';
+import { validateRoomId } from '../utils/validation';
 import logger from '../utils/logger.js';
 
 const HomePage: React.FC = () => {
@@ -30,7 +31,16 @@ const HomePage: React.FC = () => {
   const handleJoinRoom = () => {
     const roomId = prompt('Enter room ID:');
     if (roomId?.trim()) {
-      navigate(`/room/${roomId.trim()}`);
+      const trimmedRoomId = roomId.trim();
+
+      // Validate room ID format
+      const validation = validateRoomId(trimmedRoomId);
+      if (!validation.isValid) {
+        setError(validation.error ?? 'Invalid room ID');
+        return;
+      }
+
+      navigate(`/room/${trimmedRoomId}`);
     }
   };
 
@@ -137,6 +147,12 @@ const HomePage: React.FC = () => {
               onClick={() => {
                 const roomId = roomLink.split('/').pop();
                 if (roomId) {
+                  // Validate room ID format (should be valid since it's newly created, but check for safety)
+                  const validation = validateRoomId(roomId);
+                  if (!validation.isValid) {
+                    setError(validation.error ?? 'Invalid room ID');
+                    return;
+                  }
                   navigate(`/room/${roomId}`);
                 }
               }}

@@ -14,6 +14,7 @@ import ChatArea from '../components/ChatArea';
 import logger from '../utils/logger.js';
 import {
   validateNickname,
+  validateRoomId,
   sanitizeInput,
   VALIDATION_RULES,
 } from '../utils/validation';
@@ -37,6 +38,14 @@ const RoomPage: React.FC = () => {
   useEffect(() => {
     if (!roomId) {
       navigate('/');
+      return;
+    }
+
+    // Validate room ID format
+    const roomIdValidation = validateRoomId(roomId);
+    if (!roomIdValidation.isValid) {
+      setError(roomIdValidation.error ?? 'Invalid room ID');
+      setTimeout(() => navigate('/'), 3000);
       return;
     }
 
