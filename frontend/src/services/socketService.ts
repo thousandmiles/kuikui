@@ -16,6 +16,9 @@ class SocketService {
   private socket: Socket | null = null;
   private listeners: Map<string, ((...args: unknown[]) => void)[]> = new Map();
   private readonly defaultServerUrl: string;
+  // Track whether we've had at least one successful connection during the lifetime
+  // of this SocketService instance so we can distinguish first connect vs. re-connect.
+  private hasConnectedOnce = false;
 
   constructor() {
     this.defaultServerUrl = frontendConfig.WEBSOCKET_URL;
@@ -34,14 +37,15 @@ class SocketService {
         });
 
         this.emit('lifecycle', 'connecting' as SocketLifecycleEvent);
-        let hasConnectedOnce = false;
 
         this.socket.on('connect', () => {
           logger.socket('connect', 'Connected to server');
-          if (!hasConnectedOnce) {
+          if (!this.hasConnectedOnce) {
             this.emit('lifecycle', 'connected' as SocketLifecycleEvent);
-            hasConnectedOnce = true;
+            this.hasConnectedOnce = true;
           } else {
+            // Emit reconnected here; Manager 'reconnect' event also fires, but we
+            // will suppress duplicate emission there to avoid double UI flashes.
             this.emit('lifecycle', 'reconnected' as SocketLifecycleEvent);
           }
           resolve();
@@ -84,7 +88,7 @@ class SocketService {
 
         this.socket.io.on('reconnect', attempt => {
           logger.socket('reconnect', `Reconnected after ${attempt} attempts`);
-          this.emit('lifecycle', 'reconnected' as SocketLifecycleEvent);
+          // 'connect' handler already emitted lifecycle event; avoid duplicate.
         });
 
         this.socket.io.on('reconnect_error', error => {
