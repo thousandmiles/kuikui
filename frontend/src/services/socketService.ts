@@ -85,12 +85,12 @@ class SocketService {
     });
   }
 
-  joinRoom(roomId: string, nickname: string) {
+  joinRoom(roomId: string, nickname: string, userId?: string) {
     if (!this.socket) {
       throw new Error('Socket not connected');
     }
 
-    const data: JoinRoomRequest = { roomId, nickname };
+    const data: JoinRoomRequest = { roomId, nickname, userId };
     this.socket.emit('join-room', data);
   }
 

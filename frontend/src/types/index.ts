@@ -12,6 +12,8 @@ export interface Room {
   lastActivity: Date;
   users: User[];
   messages: ChatMessage[];
+  ownerId?: string;
+  ownerNickname?: string;
 }
 
 export interface ChatMessage {
@@ -30,12 +32,16 @@ export interface CreateRoomResponse {
 export interface JoinRoomRequest {
   roomId: string;
   nickname: string;
+  userId?: string; // Optional: for user persistence across sessions
 }
 
 export interface JoinRoomResponse {
   success: boolean;
   users: User[];
   messages: ChatMessage[];
+  userId?: string; // The user's ID (new or existing)
+  ownerId?: string; // Room owner's user ID
+  ownerNickname?: string; // Room owner's nickname
   error?: string;
 }
 

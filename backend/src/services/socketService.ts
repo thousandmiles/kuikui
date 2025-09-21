@@ -3,8 +3,19 @@ import { v4 as uuidv4 } from 'uuid';
 import { roomService } from '../services/roomService';
 import { User, ChatMessage, JoinRoomRequest, JoinRoomResponse } from '../types';
 import logger from '../utils/logger';
+import {
+  validateNickname,
+  validateMessage,
+  validateRoomId,
+  sanitizeInput,
+  RateLimiter,
+} from '../utils/validation';
 
 export function setupSocketHandlers(io: SocketIOServer) {
+  // Rate limiters for different actions
+  const joinRoomLimiter = new RateLimiter(5, 60000); // 5 joins per minute
+  const messageLimiter = new RateLimiter(30, 60000); // 30 messages per minute
+
   io.on('connection', (socket: Socket) => {
     logger.socket('user connected', socket.id);
 
@@ -14,36 +25,116 @@ export function setupSocketHandlers(io: SocketIOServer) {
     // Handle joining a room
     socket.on('join-room', (data: JoinRoomRequest) => {
       try {
-        const { roomId, nickname } = data;
-
-        // Validate input
-        if (!roomId || !nickname.trim()) {
+        // Rate limiting
+        if (!joinRoomLimiter.isAllowed(socket.id)) {
           socket.emit('error', {
-            message: 'Room ID and nickname are required',
+            message: 'Too many join attempts. Please wait before trying again.',
           });
           return;
         }
 
-        // Check if room exists
+        const { roomId, nickname, userId: existingUserId } = data;
+
+        // Validate room ID
+        const roomIdValidation = validateRoomId(roomId);
+        if (!roomIdValidation.isValid) {
+          socket.emit('error', { message: roomIdValidation.error });
+          return;
+        }
+
+        // Validate and sanitize nickname
+        const nicknameValidation = validateNickname(nickname);
+        if (!nicknameValidation.isValid) {
+          socket.emit('error', { message: nicknameValidation.error });
+          return;
+        }
+
+        const sanitizedNickname = sanitizeInput(nickname);
+
+        // Check if the room exists
         if (!roomService.roomExists(roomId)) {
-          socket.emit('error', { message: 'Room does not exist' });
+          socket.emit('error', { message: 'Room not found' });
           return;
         }
 
-        // Check if nickname is available in this room
-        if (!roomService.isNicknameAvailable(roomId, nickname.trim())) {
+        // Handle returning user with existing userId
+        if (
+          existingUserId &&
+          roomService.isUserInRoom(roomId, existingUserId)
+        ) {
+          // User is returning to a room they were already in
+          const existingUser = roomService.getUserInRoom(
+            roomId,
+            existingUserId
+          );
+          if (existingUser) {
+            // Check if nickname conflicts with OTHER users (excluding self)
+            if (
+              !roomService.isNicknameAvailableForUser(
+                roomId,
+                sanitizedNickname,
+                existingUserId
+              )
+            ) {
+              socket.emit('error', {
+                message: 'This nickname is already taken in this room',
+              });
+              return;
+            }
+
+            // For returning users, use the server's saved nickname instead of client's
+            // This prevents unexpected nickname changes since we don't provide rename UI
+            const serverNickname = existingUser.nickname;
+
+            // Update existing user's socket ID (keep server's nickname)
+            roomService.updateUserInRoom(
+              roomId,
+              existingUserId,
+              serverNickname,
+              socket.id
+            );
+            void socket.join(roomId);
+
+            // Send current room state to returning user
+            const users = roomService.getUsersInRoom(roomId);
+            const messages = roomService.getMessages(roomId);
+            const room = roomService.getRoom(roomId);
+            const response: JoinRoomResponse = {
+              success: true,
+              users,
+              messages,
+              userId: existingUserId,
+              ownerId: room?.ownerId,
+              ownerNickname: room?.ownerNickname,
+            };
+            socket.emit('room-joined', response);
+
+            logger.info(
+              `User ${serverNickname} (${existingUserId}) rejoined room ${roomId}${
+                nickname !== serverNickname
+                  ? ` (client sent ${nickname}, using server's ${serverNickname})`
+                  : ''
+              }`
+            );
+            return;
+          }
+        }
+
+        // Handle new user or user with new nickname
+        if (!roomService.isNicknameAvailable(roomId, sanitizedNickname)) {
           socket.emit('error', {
-            message:
-              'This nickname is already taken in this room. Please choose a different one.',
+            message: 'This nickname is already taken in this room',
           });
           return;
         }
+
+        // Use existing userId or generate a new one
+        const userId = existingUserId ?? uuidv4();
 
         // Create user object
-        const userId = uuidv4();
         const user: User = {
           id: userId,
-          nickname: nickname.trim(),
+          nickname: sanitizedNickname,
           socketId: socket.id,
           joinedAt: new Date(),
           isOnline: true,
@@ -64,12 +155,16 @@ export function setupSocketHandlers(io: SocketIOServer) {
         // Get current room state
         const users = roomService.getUsersInRoom(roomId);
         const messages = roomService.getMessages(roomId);
+        const room = roomService.getRoom(roomId);
 
         // Send response to the joining user
         const response: JoinRoomResponse = {
           success: true,
           users,
           messages,
+          userId, // Include the userId in the response
+          ownerId: room?.ownerId,
+          ownerNickname: room?.ownerNickname,
         };
         socket.emit('room-joined', response);
 
@@ -97,16 +192,30 @@ export function setupSocketHandlers(io: SocketIOServer) {
     // Handle sending messages
     socket.on('send-message', (data: { content: string }) => {
       try {
+        // Rate limiting
+        if (!messageLimiter.isAllowed(socket.id)) {
+          socket.emit('error', {
+            message: 'Too many messages. Please slow down.',
+          });
+          return;
+        }
+
         if (!currentUserId || !currentRoomId) {
           socket.emit('error', { message: 'Not in a room' });
           return;
         }
 
         const { content } = data;
-        if (!content.trim()) {
-          socket.emit('error', { message: 'Message content cannot be empty' });
+
+        // Validate message content
+        const messageValidation = validateMessage(content);
+        if (!messageValidation.isValid) {
+          socket.emit('error', { message: messageValidation.error });
           return;
         }
+
+        // Sanitize message content
+        const sanitizedContent = sanitizeInput(content);
 
         // Get user info
         const users = roomService.getUsersInRoom(currentRoomId);
@@ -121,7 +230,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
           id: uuidv4(),
           userId: currentUserId,
           nickname: user.nickname,
-          content: content.trim(),
+          content: sanitizedContent,
           timestamp: new Date(),
         };
 
@@ -211,19 +320,9 @@ export function setupSocketHandlers(io: SocketIOServer) {
     });
   });
 
-  // Periodic cleanup of expired rooms
-  const cleanupInterval = setInterval(
-    () => {
-      const deletedCount = roomService.cleanupExpiredRooms(24);
-      if (deletedCount > 0) {
-        logger.info('Cleaned up expired rooms', { deletedCount });
-      }
-    },
-    60 * 60 * 1000
-  ); // Run every hour
-
-  // Clear interval on server shutdown
-  process.on('SIGTERM', () => {
-    clearInterval(cleanupInterval);
-  });
+  // Cleanup rate limiters periodically
+  setInterval(() => {
+    joinRoomLimiter.cleanup();
+    messageLimiter.cleanup();
+  }, 300000); // Cleanup every 5 minutes
 }

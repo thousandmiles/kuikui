@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { socketService } from '../services/socketService';
 import { apiService } from '../services/apiService';
+import { userPersistenceService } from '../services/userPersistenceService';
 import {
   User,
   ChatMessage,
@@ -11,6 +12,11 @@ import {
 import UserList from '../components/UserList';
 import ChatArea from '../components/ChatArea';
 import logger from '../utils/logger.js';
+import {
+  validateNickname,
+  sanitizeInput,
+  VALIDATION_RULES,
+} from '../utils/validation';
 
 const RoomPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
@@ -23,6 +29,9 @@ const RoomPage: React.FC = () => {
   const [error, setError] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [ownerId, setOwnerId] = useState<string | undefined>(undefined);
+  const [nicknameError, setNicknameError] = useState<string>('');
+  const [isNicknameValid, setIsNicknameValid] = useState<boolean>(false);
   const currentUserRef = useRef<User | null>(null);
 
   useEffect(() => {
@@ -31,13 +40,43 @@ const RoomPage: React.FC = () => {
       return;
     }
 
-    // Check if room exists
-    const checkRoom = async () => {
+    // Check if room exists and handle auto-rejoin
+    const checkRoomAndAutoRejoin = async () => {
       try {
         const exists = await apiService.checkRoomExists(roomId);
         if (!exists) {
           setError('Room does not exist');
           setTimeout(() => navigate('/'), 3000);
+          return;
+        }
+
+        // Check if user has a valid session for this room
+        const storedSession = userPersistenceService.getUserSession(roomId);
+        if (storedSession) {
+          // Auto-rejoin with stored session
+          setNickname(storedSession.nickname);
+          setIsConnecting(true);
+
+          try {
+            if (!socketService.isConnected()) {
+              await socketService.connect();
+            }
+
+            socketService.joinRoom(
+              roomId,
+              storedSession.nickname,
+              storedSession.userId
+            );
+          } catch (err) {
+            setError('Failed to reconnect to room');
+            setIsConnecting(false);
+            logger.error('Failed to auto-rejoin room', {
+              error: err instanceof Error ? err.message : String(err),
+              roomId,
+              userId: storedSession.userId,
+              nickname: storedSession.nickname,
+            });
+          }
         }
       } catch (err) {
         setError('Failed to verify room');
@@ -48,7 +87,7 @@ const RoomPage: React.FC = () => {
       }
     };
 
-    void checkRoom();
+    void checkRoomAndAutoRejoin();
   }, [roomId, navigate]);
 
   const handleCopyRoomId = async () => {
@@ -86,6 +125,18 @@ const RoomPage: React.FC = () => {
         setMessages(joinResponse.messages);
         setIsJoined(true);
         setError('');
+
+        // Store owner information
+        setOwnerId(joinResponse.ownerId);
+
+        // Store the complete user session for persistence across sessions
+        if (joinResponse.userId && roomId) {
+          userPersistenceService.setUserSession(
+            joinResponse.userId,
+            nickname,
+            roomId
+          );
+        }
 
         // Store current user (we'll get the user ID from the join response)
         currentUserRef.current =
@@ -167,27 +218,93 @@ const RoomPage: React.FC = () => {
     };
   }, [nickname, roomId]);
 
+  // Handle browser close/refresh cleanup
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Don't clear session data on refresh/close - we want to preserve it for auto-rejoin
+      // Just ensure clean disconnect
+      if (socketService.isConnected()) {
+        socketService.disconnect();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // Page is hidden (tab switched, minimized, etc.)
+        // Update last activity timestamp to keep session fresh
+        if (isJoined) {
+          userPersistenceService.updateLastActivity();
+        }
+      }
+    };
+
+    // Only add the beforeunload listener if user is actually in a room
+    if (isJoined) {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isJoined, messages.length]);
+
+  // Nickname validation
+  const validateNicknameInput = useCallback((value: string) => {
+    const validation = validateNickname(value);
+    setNicknameError(validation.error ?? '');
+    setIsNicknameValid(validation.isValid);
+  }, []);
+
+  // Handle nickname change with validation
+  const handleNicknameChange = (value: string) => {
+    setNickname(value);
+    // Immediate validation feedback
+    validateNicknameInput(value);
+  };
+
   const handleJoinRoom = async () => {
-    if (!nickname.trim() || !roomId) {
+    if (!roomId || !nickname.trim()) {
+      return;
+    }
+
+    // Final validation before joining
+    const validation = validateNickname(nickname);
+    if (!validation.isValid) {
+      setNicknameError(validation.error ?? 'Invalid nickname');
+      return;
+    }
+
+    const sanitizedNickname = sanitizeInput(nickname);
+    if (!sanitizedNickname) {
+      setNicknameError('Nickname cannot be empty after cleanup');
       return;
     }
 
     setIsConnecting(true);
     setError('');
+    setNicknameError('');
 
     try {
       if (!socketService.isConnected()) {
         await socketService.connect();
       }
 
-      socketService.joinRoom(roomId, nickname.trim());
+      // This is for new users or users with expired sessions
+      // No stored userId should be used here - let backend generate a new one
+      socketService.joinRoom(
+        roomId,
+        sanitizedNickname,
+        undefined // Always undefined for manual joins
+      );
     } catch (err) {
       setError('Failed to connect to server');
       setIsConnecting(false);
       logger.error('Failed to connect to server', {
         error: err instanceof Error ? err.message : String(err),
         roomId,
-        nickname: nickname.trim(),
+        nickname: sanitizedNickname,
       });
     }
   };
@@ -195,6 +312,8 @@ const RoomPage: React.FC = () => {
   const handleSendMessage = (content: string) => {
     try {
       socketService.sendMessage(content);
+      // Update activity timestamp to keep session fresh
+      userPersistenceService.updateLastActivity();
     } catch (err) {
       setError('Failed to send message');
       logger.error('Failed to send message', {
@@ -215,6 +334,18 @@ const RoomPage: React.FC = () => {
         isTyping,
       });
     }
+  };
+
+  const handleLeaveRoom = () => {
+    // Mark session as intentionally ended before clearing
+    userPersistenceService.markSessionAsEnded();
+
+    // Clear the stored session when explicitly leaving (room-specific)
+    if (roomId) {
+      userPersistenceService.clearUserSession(roomId);
+    }
+
+    navigate('/');
   };
 
   if (!roomId) {
@@ -242,18 +373,29 @@ const RoomPage: React.FC = () => {
                 type='text'
                 id='nickname'
                 value={nickname}
-                onChange={e => setNickname(e.target.value)}
+                onChange={e => handleNicknameChange(e.target.value)}
                 onKeyPress={e => e.key === 'Enter' && void handleJoinRoom()}
                 placeholder='Enter your nickname'
-                className='w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-                maxLength={30}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                  nicknameError
+                    ? 'border-red-300 focus:ring-red-500'
+                    : 'border-gray-300 focus:ring-blue-500'
+                }`}
+                maxLength={VALIDATION_RULES.nickname.maxLength}
                 disabled={isConnecting}
               />
+              {nicknameError && (
+                <p className='mt-1 text-sm text-red-600'>{nicknameError}</p>
+              )}
+              <p className='mt-1 text-xs text-gray-500'>
+                {nickname.length}/{VALIDATION_RULES.nickname.maxLength}{' '}
+                characters
+              </p>
             </div>
 
             <button
               onClick={() => void handleJoinRoom()}
-              disabled={!nickname.trim() || isConnecting}
+              disabled={!nickname.trim() || !isNicknameValid || isConnecting}
               className='w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold py-3 px-4 rounded-lg transition duration-200'
             >
               {isConnecting ? 'Joining...' : 'Join Room'}
@@ -268,7 +410,7 @@ const RoomPage: React.FC = () => {
 
           <div className='mt-6 text-center'>
             <button
-              onClick={() => navigate('/')}
+              onClick={handleLeaveRoom}
               className='text-blue-600 hover:text-blue-800 text-sm'
             >
               ← Back to Home
@@ -317,7 +459,7 @@ const RoomPage: React.FC = () => {
                       strokeLinecap='round'
                       strokeLinejoin='round'
                       strokeWidth={2}
-                      d='M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z'
+                      d='M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2 2v8a2 2 0 002 2z'
                     />
                   </svg>
                 )}
@@ -325,8 +467,8 @@ const RoomPage: React.FC = () => {
             </div>
           </div>
           <button
-            onClick={() => navigate('/')}
-            className='text-sm text-gray-600 hover:text-gray-800'
+            onClick={handleLeaveRoom}
+            className='px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-red-500'
           >
             Leave Room
           </button>
@@ -338,6 +480,7 @@ const RoomPage: React.FC = () => {
           users={users}
           typingUsers={typingUsers}
           currentUserId={currentUserRef.current?.id}
+          ownerId={ownerId}
         />
         <ChatArea
           messages={messages}
