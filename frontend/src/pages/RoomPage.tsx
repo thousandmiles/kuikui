@@ -11,6 +11,7 @@ import {
 } from '../types/index';
 import UserList from '../components/UserList';
 import ChatArea from '../components/ChatArea';
+import { LoadingSpinner } from '../components/LoadingComponents';
 import logger from '../utils/logger.js';
 import {
   validateNickname,
@@ -29,6 +30,7 @@ const RoomPage: React.FC = () => {
   const [typingUsers, setTypingUsers] = useState<TypingStatus[]>([]);
   const [error, setError] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isVerifyingRoom, setIsVerifyingRoom] = useState(false);
   const [copied, setCopied] = useState(false);
   const [ownerId, setOwnerId] = useState<string | undefined>(undefined);
   const [nicknameError, setNicknameError] = useState<string>('');
@@ -51,6 +53,7 @@ const RoomPage: React.FC = () => {
 
     // Check if room exists and handle auto-rejoin
     const checkRoomAndAutoRejoin = async () => {
+      setIsVerifyingRoom(true);
       try {
         const exists = await apiService.checkRoomExists(roomId);
         if (!exists) {
@@ -93,6 +96,8 @@ const RoomPage: React.FC = () => {
           error: err instanceof Error ? err.message : String(err),
           roomId,
         });
+      } finally {
+        setIsVerifyingRoom(false);
       }
     };
 
@@ -362,6 +367,25 @@ const RoomPage: React.FC = () => {
   }
 
   if (!isJoined) {
+    // Show loading state while verifying room
+    if (isVerifyingRoom) {
+      return (
+        <div className='min-h-screen bg-gray-50 flex items-center justify-center p-4'>
+          <div className='max-w-md w-full bg-white rounded-lg shadow-lg p-8'>
+            <div className='text-center'>
+              <LoadingSpinner size='large' />
+              <h2 className='text-xl font-semibold text-gray-900 mt-4 mb-2'>
+                Verifying Room
+              </h2>
+              <p className='text-gray-600'>
+                Checking if room exists and attempting to reconnect...
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className='min-h-screen bg-gray-50 flex items-center justify-center p-4'>
         <div className='max-w-md w-full bg-white rounded-lg shadow-lg p-8'>
