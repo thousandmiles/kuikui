@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/apiService';
 import { validateRoomId } from '../utils/validation';
+import { LoadingButton } from '../components/LoadingComponents';
 import logger from '../utils/logger.js';
 
 const HomePage: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [roomLink, setRoomLink] = useState('');
   const [error, setError] = useState('');
+  const [isNavigating, setIsNavigating] = useState(false);
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
@@ -40,6 +42,7 @@ const HomePage: React.FC = () => {
         return;
       }
 
+      setIsNavigating(true);
       navigate(`/room/${trimmedRoomId}`);
     }
   };
@@ -76,13 +79,15 @@ const HomePage: React.FC = () => {
         </div>
 
         <div className='space-y-4'>
-          <button
+          <LoadingButton
             onClick={() => void handleCreateRoom()}
             disabled={isCreating}
+            isLoading={isCreating}
+            loadingText='Creating Room...'
             className='w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold py-3 px-4 rounded-lg transition duration-200'
           >
-            {isCreating ? 'Creating Room...' : 'Create New Room'}
-          </button>
+            Create New Room
+          </LoadingButton>
 
           <button
             onClick={handleJoinRoom}
@@ -143,7 +148,7 @@ const HomePage: React.FC = () => {
                 )}
               </button>
             </div>
-            <button
+            <LoadingButton
               onClick={() => {
                 const roomId = roomLink.split('/').pop();
                 if (roomId) {
@@ -153,13 +158,16 @@ const HomePage: React.FC = () => {
                     setError(validation.error ?? 'Invalid room ID');
                     return;
                   }
+                  setIsNavigating(true);
                   navigate(`/room/${roomId}`);
                 }
               }}
+              isLoading={isNavigating}
+              loadingText='Entering...'
               className='w-full mt-3 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded transition duration-200'
             >
               Enter Room
-            </button>
+            </LoadingButton>
           </div>
         )}
 
