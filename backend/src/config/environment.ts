@@ -2,6 +2,11 @@
  * Backend environment configuration for kuikui
  */
 
+import dotenv from 'dotenv';
+
+// Load environment variables BEFORE importing config
+dotenv.config({ path: '.env' });
+
 export interface BackendConfig {
   NODE_ENV: 'development' | 'production' | 'test';
   PORT: number;

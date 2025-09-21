@@ -4,15 +4,11 @@ import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
 import roomRoutes from './routes/rooms';
 import { setupSocketHandlers } from './services/socketService';
 import { roomService } from './services/roomService';
 import { backendConfig } from './config/environment';
 import logger from './utils/logger';
-
-// Load environment variables from parent directory
-dotenv.config({ path: '../.env' });
 
 const app = express();
 const httpServer = createServer(app);
@@ -98,6 +94,7 @@ httpServer.listen(PORT, () => {
   logger.info(`Backend URL: ${backendConfig.BACKEND_URL}`);
   logger.info(`Frontend URL: ${backendConfig.FRONTEND_URL}`);
   logger.info(`CORS Origin: ${backendConfig.CORS_ORIGIN}`);
+  logger.info(`Room Capacity: ${backendConfig.ROOM_CAPACITY}`);
   logger.info(`Health check: ${backendConfig.BACKEND_URL}/health`);
   logger.info('WebSocket server ready');
 });
