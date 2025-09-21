@@ -8,6 +8,8 @@ import {
   ChatMessage,
   TypingStatus,
   JoinRoomResponse,
+  SocketError,
+  SocketErrorCode,
 } from '../types/index';
 import UserList from '../components/UserList';
 import ChatArea from '../components/ChatArea';
@@ -29,6 +31,7 @@ const RoomPage: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [typingUsers, setTypingUsers] = useState<TypingStatus[]>([]);
   const [error, setError] = useState('');
+  const [transientNotice, setTransientNotice] = useState<string>('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [isVerifyingRoom, setIsVerifyingRoom] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -39,6 +42,7 @@ const RoomPage: React.FC = () => {
   const [nicknameError, setNicknameError] = useState<string>('');
   const [isNicknameValid, setIsNicknameValid] = useState<boolean>(false);
   const currentUserRef = useRef<User | null>(null);
+  const hasShownInitialConnectRef = useRef(false);
 
   useEffect(() => {
     if (!roomId) {
@@ -232,17 +236,43 @@ const RoomPage: React.FC = () => {
     };
 
     const handleError = (data: unknown) => {
-      const errorData = data as { message: string };
-      const errorMessage = errorData.message;
+      const err = data as SocketError;
+      const message = err.message || 'Unknown error';
 
-      // Check if this is a room full error
-      if (errorMessage.includes('Room is full')) {
-        setError(`${errorMessage}. Please try again later.`);
+      if (err.code === SocketErrorCode.ROOM_FULL) {
+        setError(`${message}. Please try again later.`);
+      } else if (err.code === SocketErrorCode.RATE_LIMITED) {
+        setTransientNotice(message);
+        setTimeout(() => setTransientNotice(''), 3000);
+      } else if (err.code === SocketErrorCode.DISCONNECTED) {
+        setTransientNotice('Connection lost. Attempting to reconnect...');
       } else {
-        setError(errorMessage);
+        setError(message);
       }
-
       setIsConnecting(false);
+    };
+
+    const handleLifecycle = (evt: unknown) => {
+      const event = evt as
+        | 'connecting'
+        | 'connected'
+        | 'reconnecting'
+        | 'reconnected'
+        | 'connection_error'
+        | 'disconnected';
+
+      if (event === 'connected') {
+        // First stable connection: do not show "Reconnected"
+        hasShownInitialConnectRef.current = true;
+      } else if (event === 'reconnecting') {
+        setTransientNotice('Reconnecting...');
+      } else if (event === 'reconnected') {
+        // Only show after initial connect already happened
+        if (hasShownInitialConnectRef.current) {
+          setTransientNotice('Reconnected');
+          setTimeout(() => setTransientNotice(''), 2000);
+        }
+      }
     };
 
     // Register event listeners
@@ -252,6 +282,7 @@ const RoomPage: React.FC = () => {
     socketService.on('new-message', handleNewMessage);
     socketService.on('user-typing-status', handleUserTypingStatus);
     socketService.on('error', handleError);
+    socketService.on('lifecycle', handleLifecycle);
 
     return () => {
       // Cleanup listeners with actual function references
@@ -261,6 +292,7 @@ const RoomPage: React.FC = () => {
       socketService.off('new-message', handleNewMessage);
       socketService.off('user-typing-status', handleUserTypingStatus);
       socketService.off('error', handleError);
+      socketService.off('lifecycle', handleLifecycle);
 
       // Disconnect when leaving the component
       if (socketService.isConnected()) {
@@ -493,6 +525,11 @@ const RoomPage: React.FC = () => {
 
   return (
     <div className='h-screen bg-gray-50 flex flex-col'>
+      {transientNotice && (
+        <div className='absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-blue-100 text-blue-700 border border-blue-300 px-4 py-2 rounded shadow text-sm'>
+          {transientNotice}
+        </div>
+      )}
       <header className='bg-white shadow-sm border-b px-4 py-3'>
         <div className='flex items-center justify-between'>
           <div>
