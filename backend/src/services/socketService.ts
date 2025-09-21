@@ -1,7 +1,14 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
 import { roomService } from '../services/roomService';
-import { User, ChatMessage, JoinRoomRequest, JoinRoomResponse } from '../types';
+import {
+  User,
+  ChatMessage,
+  JoinRoomRequest,
+  JoinRoomResponse,
+  SocketErrorCode,
+} from '../types';
+import { createSocketError, emitSocketError } from '../utils/socketErrors';
 import logger from '../utils/logger';
 import {
   validateNickname,
@@ -23,13 +30,35 @@ export function setupSocketHandlers(io: SocketIOServer) {
     let currentRoomId: string | null = null;
 
     // Handle joining a room
-    socket.on('join-room', (data: JoinRoomRequest) => {
+    socket.on('join-room', (raw: unknown) => {
       try {
+        // Basic payload shape guard
+        const data =
+          typeof raw === 'object' && raw !== null
+            ? (raw as JoinRoomRequest)
+            : ({} as JoinRoomRequest);
+        if (
+          typeof data.roomId !== 'string' ||
+          typeof data.nickname !== 'string'
+        ) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.VALIDATION,
+              'Invalid join-room payload'
+            )
+          );
+          return;
+        }
         // Rate limiting
         if (!joinRoomLimiter.isAllowed(socket.id)) {
-          socket.emit('error', {
-            message: 'Too many join attempts. Please wait before trying again.',
-          });
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.RATE_LIMITED,
+              'Too many join attempts. Please wait before trying again.'
+            )
+          );
           return;
         }
 
@@ -38,14 +67,26 @@ export function setupSocketHandlers(io: SocketIOServer) {
         // Validate room ID
         const roomIdValidation = validateRoomId(roomId);
         if (!roomIdValidation.isValid) {
-          socket.emit('error', { message: roomIdValidation.error });
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.VALIDATION,
+              roomIdValidation.error ?? 'Invalid room id'
+            )
+          );
           return;
         }
 
         // Validate and sanitize nickname
         const nicknameValidation = validateNickname(nickname);
         if (!nicknameValidation.isValid) {
-          socket.emit('error', { message: nicknameValidation.error });
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.VALIDATION,
+              nicknameValidation.error ?? 'Invalid nickname'
+            )
+          );
           return;
         }
 
@@ -53,7 +94,10 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
         // Check if the room exists
         if (!roomService.roomExists(roomId)) {
-          socket.emit('error', { message: 'Room not found' });
+          emitSocketError(
+            socket,
+            createSocketError(SocketErrorCode.ROOM_NOT_FOUND, 'Room not found')
+          );
           return;
         }
 
@@ -76,9 +120,13 @@ export function setupSocketHandlers(io: SocketIOServer) {
                 existingUserId
               )
             ) {
-              socket.emit('error', {
-                message: 'This nickname is already taken in this room',
-              });
+              emitSocketError(
+                socket,
+                createSocketError(
+                  SocketErrorCode.NICKNAME_TAKEN,
+                  'This nickname is already taken in this room'
+                )
+              );
               return;
             }
 
@@ -95,10 +143,15 @@ export function setupSocketHandlers(io: SocketIOServer) {
             );
             void socket.join(roomId);
 
+            // IMPORTANT: mark this socket's current user + room so later events (send-message, typing, disconnect)
+            currentUserId = existingUserId;
+            currentRoomId = roomId;
+
             // Send current room state to returning user
             const users = roomService.getUsersInRoom(roomId);
             const messages = roomService.getMessages(roomId);
             const room = roomService.getRoom(roomId);
+            const capacityInfo = roomService.getRoomCapacityInfo(roomId);
             const response: JoinRoomResponse = {
               success: true,
               users,
@@ -106,6 +159,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
               userId: existingUserId,
               ownerId: room?.ownerId,
               ownerNickname: room?.ownerNickname,
+              capacity: capacityInfo ?? undefined,
             };
             socket.emit('room-joined', response);
 
@@ -122,9 +176,26 @@ export function setupSocketHandlers(io: SocketIOServer) {
 
         // Handle new user or user with new nickname
         if (!roomService.isNicknameAvailable(roomId, sanitizedNickname)) {
-          socket.emit('error', {
-            message: 'This nickname is already taken in this room',
-          });
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.NICKNAME_TAKEN,
+              'This nickname is already taken in this room'
+            )
+          );
+          return;
+        }
+
+        // Check if room has capacity for new user (only for truly new users)
+        if (!existingUserId && !roomService.hasCapacity(roomId)) {
+          const capacityInfo = roomService.getRoomCapacityInfo(roomId);
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.ROOM_FULL,
+              `Room is full (${capacityInfo?.current}/${capacityInfo?.max} users)`
+            )
+          );
           return;
         }
 
@@ -143,7 +214,13 @@ export function setupSocketHandlers(io: SocketIOServer) {
         // Add user to room
         const success = roomService.addUserToRoom(roomId, user);
         if (!success) {
-          socket.emit('error', { message: 'Failed to join room' });
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.JOIN_FAILED,
+              'Failed to join room'
+            )
+          );
           return;
         }
 
@@ -158,6 +235,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         const room = roomService.getRoom(roomId);
 
         // Send response to the joining user
+        const capacityInfo = roomService.getRoomCapacityInfo(roomId);
         const response: JoinRoomResponse = {
           success: true,
           users,
@@ -165,6 +243,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
           userId, // Include the userId in the response
           ownerId: room?.ownerId,
           ownerNickname: room?.ownerNickname,
+          capacity: capacityInfo ?? undefined,
         };
         socket.emit('room-joined', response);
 
@@ -178,30 +257,55 @@ export function setupSocketHandlers(io: SocketIOServer) {
           socketId: socket.id,
         });
       } catch (error) {
-        const { roomId: roomIdParam, nickname: nicknameParam } = data;
         logger.error('Error joining room', {
           error: error instanceof Error ? error.message : String(error),
-          roomId: roomIdParam,
-          nickname: nicknameParam,
           socketId: socket.id,
         });
-        socket.emit('error', { message: 'Failed to join room' });
+        emitSocketError(
+          socket,
+          createSocketError(
+            SocketErrorCode.JOIN_FAILED,
+            'Failed to join room',
+            { raw: error instanceof Error ? error.message : String(error) }
+          )
+        );
       }
     });
 
     // Handle sending messages
-    socket.on('send-message', (data: { content: string }) => {
+    socket.on('send-message', (raw: unknown) => {
       try {
+        const data =
+          typeof raw === 'object' && raw !== null
+            ? (raw as { content?: string })
+            : {};
+        if (typeof data.content !== 'string') {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.VALIDATION,
+              'Invalid send-message payload'
+            )
+          );
+          return;
+        }
         // Rate limiting
         if (!messageLimiter.isAllowed(socket.id)) {
-          socket.emit('error', {
-            message: 'Too many messages. Please slow down.',
-          });
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.RATE_LIMITED,
+              'Too many messages. Please slow down.'
+            )
+          );
           return;
         }
 
         if (!currentUserId || !currentRoomId) {
-          socket.emit('error', { message: 'Not in a room' });
+          emitSocketError(
+            socket,
+            createSocketError(SocketErrorCode.NOT_IN_ROOM, 'Not in a room')
+          );
           return;
         }
 
@@ -210,7 +314,13 @@ export function setupSocketHandlers(io: SocketIOServer) {
         // Validate message content
         const messageValidation = validateMessage(content);
         if (!messageValidation.isValid) {
-          socket.emit('error', { message: messageValidation.error });
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.VALIDATION,
+              messageValidation.error ?? 'Invalid message'
+            )
+          );
           return;
         }
 
@@ -221,7 +331,13 @@ export function setupSocketHandlers(io: SocketIOServer) {
         const users = roomService.getUsersInRoom(currentRoomId);
         const user = users.find(u => u.id === currentUserId);
         if (!user) {
-          socket.emit('error', { message: 'User not found in room' });
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.USER_NOT_FOUND,
+              'User not found in room'
+            )
+          );
           return;
         }
 
@@ -253,13 +369,26 @@ export function setupSocketHandlers(io: SocketIOServer) {
           userId: currentUserId,
           socketId: socket.id,
         });
-        socket.emit('error', { message: 'Failed to send message' });
+        emitSocketError(
+          socket,
+          createSocketError(
+            SocketErrorCode.MESSAGE_FAILED,
+            'Failed to send message',
+            { raw: error instanceof Error ? error.message : String(error) }
+          )
+        );
       }
     });
 
     // Handle typing status
-    socket.on('user-typing', (data: { isTyping: boolean }) => {
+    socket.on('user-typing', (raw: unknown) => {
       try {
+        const data =
+          typeof raw === 'object' && raw !== null
+            ? (raw as { isTyping?: unknown })
+            : {};
+        const isTyping =
+          typeof data.isTyping === 'boolean' ? data.isTyping : false;
         if (!currentUserId || !currentRoomId) {
           return;
         }
@@ -274,7 +403,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         socket.to(currentRoomId).emit('user-typing-status', {
           userId: currentUserId,
           nickname: user.nickname,
-          isTyping: data.isTyping,
+          isTyping,
         });
       } catch (error) {
         logger.error('Error handling typing status', {

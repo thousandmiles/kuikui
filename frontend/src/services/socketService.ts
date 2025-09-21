@@ -5,6 +5,9 @@ import {
   User,
   ChatMessage,
   TypingStatus,
+  SocketError,
+  SocketErrorCode,
+  SocketLifecycleEvent,
 } from '../types/index.js';
 import { frontendConfig } from '../config/environment.js';
 import logger from '../utils/logger.js';
@@ -13,6 +16,9 @@ class SocketService {
   private socket: Socket | null = null;
   private listeners: Map<string, ((...args: unknown[]) => void)[]> = new Map();
   private readonly defaultServerUrl: string;
+  // Track whether we've had at least one successful connection during the lifetime
+  // of this SocketService instance so we can distinguish first connect vs. re-connect.
+  private hasConnectedOnce = false;
 
   constructor() {
     this.defaultServerUrl = frontendConfig.WEBSOCKET_URL;
@@ -30,21 +36,71 @@ class SocketService {
           upgrade: true,
         });
 
+        this.emit('lifecycle', 'connecting' as SocketLifecycleEvent);
+
         this.socket.on('connect', () => {
           logger.socket('connect', 'Connected to server');
+          if (!this.hasConnectedOnce) {
+            this.emit('lifecycle', 'connected' as SocketLifecycleEvent);
+            this.hasConnectedOnce = true;
+          } else {
+            // Emit reconnected here; Manager 'reconnect' event also fires, but we
+            // will suppress duplicate emission there to avoid double UI flashes.
+            this.emit('lifecycle', 'reconnected' as SocketLifecycleEvent);
+          }
           resolve();
         });
 
         this.socket.on('connect_error', error => {
-          logger.error('Socket connection error', {
-            error: error instanceof Error ? error.message : String(error),
-            url,
-          });
+          const message =
+            error instanceof Error ? error.message : String(error);
+          logger.error('Socket connection error', { error: message, url });
+          const structured: SocketError = {
+            code: SocketErrorCode.INTERNAL_ERROR,
+            message: 'Failed to connect to server',
+            details: { raw: message, url },
+            recoverable: true,
+          };
+          this.emit('error', structured);
+          this.emit('lifecycle', 'connection_error' as SocketLifecycleEvent);
           reject(error);
         });
 
-        this.socket.on('disconnect', () => {
+        this.socket.on('disconnect', reason => {
           logger.socket('disconnect', 'Disconnected from server');
+          const structured: SocketError = {
+            code: SocketErrorCode.DISCONNECTED,
+            message: 'Disconnected from server',
+            details: { reason },
+            recoverable: true,
+          };
+          this.emit('error', structured);
+          this.emit('lifecycle', 'disconnected' as SocketLifecycleEvent);
+        });
+
+        this.socket.io.on('reconnect_attempt', attempt => {
+          this.emit('lifecycle', 'reconnecting' as SocketLifecycleEvent);
+          logger.socket(
+            'reconnect_attempt',
+            `Reconnecting (attempt ${attempt})`
+          );
+        });
+
+        this.socket.io.on('reconnect', attempt => {
+          logger.socket('reconnect', `Reconnected after ${attempt} attempts`);
+          // 'connect' handler already emitted lifecycle event; avoid duplicate.
+        });
+
+        this.socket.io.on('reconnect_error', error => {
+          const msg = error instanceof Error ? error.message : String(error);
+          const structured: SocketError = {
+            code: SocketErrorCode.RECONNECT_FAILED,
+            message: 'Reconnection attempt failed',
+            details: { raw: msg },
+            recoverable: true,
+          };
+          this.emit('error', structured);
+          this.emit('lifecycle', 'connection_error' as SocketLifecycleEvent);
         });
 
         // Set up event listeners
@@ -80,8 +136,14 @@ class SocketService {
       this.emit('user-typing-status', status);
     });
 
-    this.socket.on('error', (data: { message: string }) => {
-      this.emit('error', data);
+    this.socket.on('error', (data: { message: string; code?: string }) => {
+      // Normalize to SocketError
+      const incomingCode = data.code as SocketErrorCode | undefined;
+      const structured: SocketError = {
+        code: incomingCode ? incomingCode : SocketErrorCode.INTERNAL_ERROR,
+        message: data.message || 'Unknown socket error',
+      };
+      this.emit('error', structured);
     });
   }
 

@@ -4,15 +4,11 @@ import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
 import roomRoutes from './routes/rooms';
 import { setupSocketHandlers } from './services/socketService';
 import { roomService } from './services/roomService';
 import { backendConfig } from './config/environment';
 import logger from './utils/logger';
-
-// Load environment variables from parent directory
-dotenv.config({ path: '../.env' });
 
 const app = express();
 const httpServer = createServer(app);
@@ -94,11 +90,17 @@ app.use('*', (req, res) => {
 const PORT = backendConfig.PORT;
 
 httpServer.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`);
-  logger.info(`Backend URL: ${backendConfig.BACKEND_URL}`);
-  logger.info(`Frontend URL: ${backendConfig.FRONTEND_URL}`);
-  logger.info(`CORS Origin: ${backendConfig.CORS_ORIGIN}`);
-  logger.info(`Health check: ${backendConfig.BACKEND_URL}/health`);
+  // Environment debug information
+  logger.info('Environment Configuration:', {
+    NODE_ENV: backendConfig.NODE_ENV,
+    PORT: backendConfig.PORT,
+    BACKEND_URL: backendConfig.BACKEND_URL,
+    FRONTEND_URL: backendConfig.FRONTEND_URL,
+    CORS_ORIGIN: backendConfig.CORS_ORIGIN,
+    ROOM_CAPACITY: backendConfig.ROOM_CAPACITY,
+    ROOM_EXPIRY_HOURS: backendConfig.ROOM_EXPIRY_HOURS,
+  });
+
   logger.info('WebSocket server ready');
 });
 

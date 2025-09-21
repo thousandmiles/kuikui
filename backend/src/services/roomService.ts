@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Room, User, ChatMessage } from '../types';
+import { backendConfig } from '../config/environment';
 import logger from '../utils/logger';
 
 class RoomService {
@@ -13,6 +14,7 @@ class RoomService {
       lastActivity: new Date(),
       users: new Map(),
       messages: [],
+      capacity: backendConfig.ROOM_CAPACITY,
     };
 
     this.rooms.set(roomId, room);
@@ -78,6 +80,27 @@ class RoomService {
     }
 
     return room.users.has(userId);
+  }
+
+  hasCapacity(roomId: string): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return false;
+    }
+
+    return room.users.size < room.capacity;
+  }
+
+  getRoomCapacityInfo(roomId: string): { current: number; max: number } | null {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return null;
+    }
+
+    return {
+      current: room.users.size,
+      max: room.capacity,
+    };
   }
 
   getUserInRoom(roomId: string, userId: string): User | undefined {

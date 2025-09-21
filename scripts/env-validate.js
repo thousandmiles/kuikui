@@ -28,7 +28,7 @@ function loadEnv(filePath) {
 }
 
 function validateBackendConfig(env) {
-    const required = ['BACKEND_PORT', 'BACKEND_HOST', 'BACKEND_URL', 'CORS_ORIGIN', 'API_BASE_URL', 'WEBSOCKET_URL'];
+    const required = ['BACKEND_PORT', 'BACKEND_HOST', 'BACKEND_URL', 'CORS_ORIGIN', 'API_BASE_URL', 'WEBSOCKET_URL', 'NODE_ENV', 'ROOM_EXPIRY_HOURS', 'ROOM_CAPACITY'];
     const missing = required.filter(key => !env[key]);
     
     if (missing.length > 0) {
@@ -41,11 +41,11 @@ function validateBackendConfig(env) {
 }
 
 function validateFrontendConfig(env) {
-    const required = ['FRONTEND_PORT', 'FRONTEND_HOST', 'FRONTEND_URL'];
+    const required = ['FRONTEND_PORT', 'FRONTEND_HOST', 'FRONTEND_URL', 'VITE_API_BASE_URL', 'VITE_WEBSOCKET_URL', 'VITE_BACKEND_URL', 'VITE_FRONTEND_URL', 'NODE_ENV'];
     const missing = required.filter(key => !env[key]);
     
     if (missing.length > 0) {
-        console.log('Frontend missing required ariables:', missing.join(', '));
+        console.log('Frontend missing required variables:', missing.join(', '));
         return false;
     }
     
@@ -54,33 +54,31 @@ function validateFrontendConfig(env) {
 }
 
 function main() {
-    console.log('Validating environment configuration...\n');
+    console.log('--- Validating environment configuration ---\n');
     
     // Load environment files
     const rootEnv = loadEnv(path.join(__dirname, '..', '.env'));
     const backendEnv = loadEnv(path.join(__dirname, '..', 'backend', '.env'));
     const frontendEnv = loadEnv(path.join(__dirname, '..', 'frontend', '.env'));
-    
-    // Merge environments (backend inherits from root)
-    const mergedBackendEnv = { ...rootEnv, ...backendEnv };
-    const mergedFrontendEnv = { ...rootEnv, ...frontendEnv };
+
     
     // Validate configurations
-    const backendValid = validateBackendConfig(mergedBackendEnv);
-    const frontendValid = validateFrontendConfig(mergedFrontendEnv);
-    
+    const backendValid = validateBackendConfig(backendEnv);
+    const frontendValid = validateFrontendConfig(frontendEnv);
+
     if (backendValid && frontendValid) {
         console.log('\nAll environment configurations are good!');
         // Display configuration summary
-        console.log(`- Backend Port: ${mergedBackendEnv.BACKEND_PORT || '3001'}`);
-        console.log(`- Frontend Port: ${mergedFrontendEnv.FRONTEND_PORT || '5173'}`);
-        console.log(`- Backend API Base URL: ${mergedBackendEnv.API_BASE_URL}`);
-        console.log(`- Frontend Base URL: ${mergedFrontendEnv.FRONTEND_URL}`);
-        console.log(`- WebSocket URL: ${mergedBackendEnv.WEBSOCKET_URL}`);
-        
+        console.log(`- Backend Port: ${backendEnv.BACKEND_PORT || '3001'}`);
+        console.log(`- Frontend Port: ${frontendEnv.FRONTEND_PORT || '5173'}`);
+        console.log(`- Backend API Base URL: ${backendEnv.API_BASE_URL}`);
+        console.log(`- Frontend Base URL: ${frontendEnv.FRONTEND_URL}`);
+        console.log(`- WebSocket URL: ${backendEnv.WEBSOCKET_URL}`);
+        console.log('--------------------------------\n');
         process.exit(0);
     } else {
         console.log('\nEnvironment validation failed. Please fix the issues above.');
+        console.log('--------------------------------\n');
         process.exit(1);
     }
 }

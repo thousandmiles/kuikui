@@ -8,9 +8,12 @@ import {
   ChatMessage,
   TypingStatus,
   JoinRoomResponse,
+  SocketError,
+  SocketErrorCode,
 } from '../types/index';
 import UserList from '../components/UserList';
 import ChatArea from '../components/ChatArea';
+import { LoadingSpinner } from '../components/LoadingComponents';
 import logger from '../utils/logger.js';
 import {
   validateNickname,
@@ -28,12 +31,18 @@ const RoomPage: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [typingUsers, setTypingUsers] = useState<TypingStatus[]>([]);
   const [error, setError] = useState('');
+  const [transientNotice, setTransientNotice] = useState<string>('');
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isVerifyingRoom, setIsVerifyingRoom] = useState(false);
   const [copied, setCopied] = useState(false);
   const [ownerId, setOwnerId] = useState<string | undefined>(undefined);
+  const [roomCapacity, setRoomCapacity] = useState<
+    { current: number; max: number } | undefined
+  >(undefined);
   const [nicknameError, setNicknameError] = useState<string>('');
   const [isNicknameValid, setIsNicknameValid] = useState<boolean>(false);
   const currentUserRef = useRef<User | null>(null);
+  const hasShownInitialConnectRef = useRef(false);
 
   useEffect(() => {
     if (!roomId) {
@@ -51,6 +60,7 @@ const RoomPage: React.FC = () => {
 
     // Check if room exists and handle auto-rejoin
     const checkRoomAndAutoRejoin = async () => {
+      setIsVerifyingRoom(true);
       try {
         const exists = await apiService.checkRoomExists(roomId);
         if (!exists) {
@@ -93,6 +103,8 @@ const RoomPage: React.FC = () => {
           error: err instanceof Error ? err.message : String(err),
           roomId,
         });
+      } finally {
+        setIsVerifyingRoom(false);
       }
     };
 
@@ -138,6 +150,11 @@ const RoomPage: React.FC = () => {
         // Store owner information
         setOwnerId(joinResponse.ownerId);
 
+        // Store capacity information
+        if (joinResponse.capacity) {
+          setRoomCapacity(joinResponse.capacity);
+        }
+
         // Store the complete user session for persistence across sessions
         if (joinResponse.userId && roomId) {
           userPersistenceService.setUserSession(
@@ -175,12 +192,33 @@ const RoomPage: React.FC = () => {
           nickname: userData.nickname,
           userId: userData.id,
         });
-        return [...prev, userData];
+        const newUsers = [...prev, userData];
+
+        // Update capacity current count
+        setRoomCapacity(prevCapacity =>
+          prevCapacity
+            ? { ...prevCapacity, current: newUsers.length }
+            : undefined
+        );
+
+        return newUsers;
       });
     };
 
     const handleUserLeft = (userId: unknown) => {
-      setUsers(prev => prev.filter(u => u.id !== String(userId)));
+      setUsers(prev => {
+        const newUsers = prev.filter(u => u.id !== String(userId));
+
+        // Update capacity current count
+        setRoomCapacity(prevCapacity =>
+          prevCapacity
+            ? { ...prevCapacity, current: newUsers.length }
+            : undefined
+        );
+
+        return newUsers;
+      });
+      // Also remove from typing users
       setTypingUsers(prev => prev.filter(t => t.userId !== String(userId)));
     };
 
@@ -198,9 +236,43 @@ const RoomPage: React.FC = () => {
     };
 
     const handleError = (data: unknown) => {
-      const errorData = data as { message: string };
-      setError(errorData.message);
+      const err = data as SocketError;
+      const message = err.message || 'Unknown error';
+
+      if (err.code === SocketErrorCode.ROOM_FULL) {
+        setError(`${message}. Please try again later.`);
+      } else if (err.code === SocketErrorCode.RATE_LIMITED) {
+        setTransientNotice(message);
+        setTimeout(() => setTransientNotice(''), 3000);
+      } else if (err.code === SocketErrorCode.DISCONNECTED) {
+        setTransientNotice('Connection lost. Attempting to reconnect...');
+      } else {
+        setError(message);
+      }
       setIsConnecting(false);
+    };
+
+    const handleLifecycle = (evt: unknown) => {
+      const event = evt as
+        | 'connecting'
+        | 'connected'
+        | 'reconnecting'
+        | 'reconnected'
+        | 'connection_error'
+        | 'disconnected';
+
+      if (event === 'connected') {
+        // First stable connection: do not show "Reconnected"
+        hasShownInitialConnectRef.current = true;
+      } else if (event === 'reconnecting') {
+        setTransientNotice('Reconnecting...');
+      } else if (event === 'reconnected') {
+        // Only show after initial connect already happened
+        if (hasShownInitialConnectRef.current) {
+          setTransientNotice('Reconnected');
+          setTimeout(() => setTransientNotice(''), 2000);
+        }
+      }
     };
 
     // Register event listeners
@@ -210,6 +282,7 @@ const RoomPage: React.FC = () => {
     socketService.on('new-message', handleNewMessage);
     socketService.on('user-typing-status', handleUserTypingStatus);
     socketService.on('error', handleError);
+    socketService.on('lifecycle', handleLifecycle);
 
     return () => {
       // Cleanup listeners with actual function references
@@ -219,6 +292,7 @@ const RoomPage: React.FC = () => {
       socketService.off('new-message', handleNewMessage);
       socketService.off('user-typing-status', handleUserTypingStatus);
       socketService.off('error', handleError);
+      socketService.off('lifecycle', handleLifecycle);
 
       // Disconnect when leaving the component
       if (socketService.isConnected()) {
@@ -362,6 +436,25 @@ const RoomPage: React.FC = () => {
   }
 
   if (!isJoined) {
+    // Show loading state while verifying room
+    if (isVerifyingRoom) {
+      return (
+        <div className='min-h-screen bg-gray-50 flex items-center justify-center p-4'>
+          <div className='max-w-md w-full bg-white rounded-lg shadow-lg p-8'>
+            <div className='text-center'>
+              <LoadingSpinner size='large' />
+              <h2 className='text-xl font-semibold text-gray-900 mt-4 mb-2'>
+                Verifying Room
+              </h2>
+              <p className='text-gray-600'>
+                Checking if room exists and attempting to reconnect...
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className='min-h-screen bg-gray-50 flex items-center justify-center p-4'>
         <div className='max-w-md w-full bg-white rounded-lg shadow-lg p-8'>
@@ -432,6 +525,11 @@ const RoomPage: React.FC = () => {
 
   return (
     <div className='h-screen bg-gray-50 flex flex-col'>
+      {transientNotice && (
+        <div className='absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-blue-100 text-blue-700 border border-blue-300 px-4 py-2 rounded shadow text-sm'>
+          {transientNotice}
+        </div>
+      )}
       <header className='bg-white shadow-sm border-b px-4 py-3'>
         <div className='flex items-center justify-between'>
           <div>
@@ -474,6 +572,11 @@ const RoomPage: React.FC = () => {
                 )}
               </button>
             </div>
+            {roomCapacity && (
+              <p className='text-xs text-gray-500'>
+                {roomCapacity.current}/{roomCapacity.max} users
+              </p>
+            )}
           </div>
           <button
             onClick={handleLeaveRoom}

@@ -9,6 +9,7 @@ import {
   formatMessageTimestamp,
   formatTimestampWithTimezone,
 } from '../utils/dateTime';
+import { LoadingButton } from '../components/LoadingComponents';
 
 interface ChatAreaProps {
   messages: ChatMessage[];
@@ -23,6 +24,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [messageError, setMessageError] = useState<string>('');
   const [isMessageValid, setIsMessageValid] = useState<boolean>(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -50,10 +52,20 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       return;
     }
 
-    onSendMessage(sanitizedContent);
-    setInputValue('');
-    setMessageError('');
-    handleTypingStop();
+    setIsSendingMessage(true);
+    try {
+      onSendMessage(sanitizedContent);
+      setInputValue('');
+      setMessageError('');
+      handleTypingStop();
+    } catch (err) {
+      setMessageError('Failed to send message');
+    } finally {
+      // Add a small delay to show the loading state
+      setTimeout(() => {
+        setIsSendingMessage(false);
+      }, 300);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -147,20 +159,23 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             onChange={handleInputChange}
             onKeyPress={handleKeyPress}
             placeholder='Type a message...'
+            disabled={isSendingMessage}
             className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent ${
               messageError
                 ? 'border-red-300 focus:ring-red-500'
                 : 'border-gray-300 focus:ring-blue-500'
-            }`}
+            } ${isSendingMessage ? 'opacity-50' : ''}`}
             maxLength={VALIDATION_RULES.message.maxLength}
           />
-          <button
+          <LoadingButton
             onClick={handleSendMessage}
-            disabled={!inputValue.trim() || !isMessageValid}
+            disabled={!inputValue.trim() || !isMessageValid || isSendingMessage}
+            isLoading={isSendingMessage}
+            loadingText='Sending...'
             className='px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-medium rounded-lg transition duration-200'
           >
             Send
-          </button>
+          </LoadingButton>
         </div>
 
         <div className='flex justify-between items-center mt-2'>

@@ -2,6 +2,11 @@
  * Backend environment configuration for kuikui
  */
 
+import dotenv from 'dotenv';
+
+// Load environment variables BEFORE importing config
+dotenv.config({ path: '.env' });
+
 export interface BackendConfig {
   NODE_ENV: 'development' | 'production' | 'test';
   PORT: number;
@@ -9,6 +14,7 @@ export interface BackendConfig {
   FRONTEND_URL: string;
   CORS_ORIGIN: string;
   ROOM_EXPIRY_HOURS: number;
+  ROOM_CAPACITY: number;
 }
 
 /**
@@ -36,6 +42,13 @@ export function loadBackendConfig(): BackendConfig {
     );
   }
 
+  const roomCapacity = parseInt(env.ROOM_CAPACITY ?? '50', 10);
+  if (isNaN(roomCapacity) || roomCapacity <= 0 || roomCapacity > 1000) {
+    throw new Error(
+      `Invalid ROOM_CAPACITY: ${env.ROOM_CAPACITY}. Must be a positive number between 1 and 1000.`
+    );
+  }
+
   const backendHost = env.BACKEND_HOST ?? 'localhost';
   const frontendHost = env.FRONTEND_HOST ?? 'localhost';
   const frontendPort = env.FRONTEND_PORT ?? '5173';
@@ -52,6 +65,7 @@ export function loadBackendConfig(): BackendConfig {
     FRONTEND_URL: frontendUrl,
     CORS_ORIGIN: corsOrigin,
     ROOM_EXPIRY_HOURS: roomExpiryHours,
+    ROOM_CAPACITY: roomCapacity,
   };
 }
 
