@@ -143,6 +143,10 @@ export function setupSocketHandlers(io: SocketIOServer) {
             );
             void socket.join(roomId);
 
+            // IMPORTANT: mark this socket's current user + room so later events (send-message, typing, disconnect)
+            currentUserId = existingUserId;
+            currentRoomId = roomId;
+
             // Send current room state to returning user
             const users = roomService.getUsersInRoom(roomId);
             const messages = roomService.getMessages(roomId);
