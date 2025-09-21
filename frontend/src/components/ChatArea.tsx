@@ -1,5 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChatMessage } from '../types/index';
+import {
+  validateMessage,
+  sanitizeInput,
+  VALIDATION_RULES,
+} from '../utils/validation';
 
 interface ChatAreaProps {
   messages: ChatMessage[];
@@ -14,6 +19,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [messageError, setMessageError] = useState<string>('');
+  const [isMessageValid, setIsMessageValid] = useState<boolean>(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -24,17 +31,36 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
   const handleSendMessage = () => {
     const content = inputValue.trim();
-    if (!content) {
+
+    // Validate message content
+    const validation = validateMessage(content);
+    if (!validation.isValid) {
+      setMessageError(validation.error ?? 'Invalid message');
       return;
     }
 
-    onSendMessage(content);
+    // Sanitize message content
+    const sanitizedContent = sanitizeInput(content);
+    if (!sanitizedContent) {
+      setMessageError('Message cannot be empty after cleanup');
+      return;
+    }
+
+    onSendMessage(sanitizedContent);
     setInputValue('');
+    setMessageError('');
     handleTypingStop();
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(e.target.value);
+    const value = e.target.value;
+    setInputValue(value);
+
+    // Real-time validation
+    const validation = validateMessage(value);
+    setMessageError(validation.error ?? '');
+    setIsMessageValid(validation.isValid);
+
     handleTypingStart();
   };
 
@@ -117,20 +143,29 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             onChange={handleInputChange}
             onKeyPress={handleKeyPress}
             placeholder='Type a message...'
-            className='flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-            maxLength={500}
+            className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:border-transparent ${
+              messageError
+                ? 'border-red-300 focus:ring-red-500'
+                : 'border-gray-300 focus:ring-blue-500'
+            }`}
+            maxLength={VALIDATION_RULES.message.maxLength}
           />
           <button
             onClick={handleSendMessage}
-            disabled={!inputValue.trim()}
+            disabled={!inputValue.trim() || !isMessageValid}
             className='px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-medium rounded-lg transition duration-200'
           >
             Send
           </button>
         </div>
 
-        <div className='text-xs text-gray-500 mt-2'>
-          {inputValue.length}/500 characters
+        <div className='flex justify-between items-center mt-2'>
+          <div className='text-xs text-gray-500'>
+            {inputValue.length}/{VALIDATION_RULES.message.maxLength} characters
+          </div>
+          {messageError && (
+            <div className='text-xs text-red-600'>{messageError}</div>
+          )}
         </div>
       </div>
     </div>

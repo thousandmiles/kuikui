@@ -3,8 +3,19 @@ import { v4 as uuidv4 } from 'uuid';
 import { roomService } from '../services/roomService';
 import { User, ChatMessage, JoinRoomRequest, JoinRoomResponse } from '../types';
 import logger from '../utils/logger';
+import {
+  validateNickname,
+  validateMessage,
+  validateRoomId,
+  sanitizeInput,
+  RateLimiter,
+} from '../utils/validation';
 
 export function setupSocketHandlers(io: SocketIOServer) {
+  // Rate limiters for different actions
+  const joinRoomLimiter = new RateLimiter(5, 60000); // 5 joins per minute
+  const messageLimiter = new RateLimiter(30, 60000); // 30 messages per minute
+
   io.on('connection', (socket: Socket) => {
     logger.socket('user connected', socket.id);
 
@@ -14,15 +25,31 @@ export function setupSocketHandlers(io: SocketIOServer) {
     // Handle joining a room
     socket.on('join-room', (data: JoinRoomRequest) => {
       try {
-        const { roomId, nickname, userId: existingUserId } = data;
-
-        // Validate input
-        if (!roomId || !nickname.trim()) {
+        // Rate limiting
+        if (!joinRoomLimiter.isAllowed(socket.id)) {
           socket.emit('error', {
-            message: 'Room ID and nickname are required',
+            message: 'Too many join attempts. Please wait before trying again.',
           });
           return;
         }
+
+        const { roomId, nickname, userId: existingUserId } = data;
+
+        // Validate room ID
+        const roomIdValidation = validateRoomId(roomId);
+        if (!roomIdValidation.isValid) {
+          socket.emit('error', { message: roomIdValidation.error });
+          return;
+        }
+
+        // Validate and sanitize nickname
+        const nicknameValidation = validateNickname(nickname);
+        if (!nicknameValidation.isValid) {
+          socket.emit('error', { message: nicknameValidation.error });
+          return;
+        }
+
+        const sanitizedNickname = sanitizeInput(nickname);
 
         // Check if the room exists
         if (!roomService.roomExists(roomId)) {
@@ -45,7 +72,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
             if (
               !roomService.isNicknameAvailableForUser(
                 roomId,
-                nickname,
+                sanitizedNickname,
                 existingUserId
               )
             ) {
@@ -94,7 +121,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         }
 
         // Handle new user or user with new nickname
-        if (!roomService.isNicknameAvailable(roomId, nickname)) {
+        if (!roomService.isNicknameAvailable(roomId, sanitizedNickname)) {
           socket.emit('error', {
             message: 'This nickname is already taken in this room',
           });
@@ -107,7 +134,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         // Create user object
         const user: User = {
           id: userId,
-          nickname: nickname.trim(),
+          nickname: sanitizedNickname,
           socketId: socket.id,
           joinedAt: new Date(),
           isOnline: true,
@@ -165,16 +192,30 @@ export function setupSocketHandlers(io: SocketIOServer) {
     // Handle sending messages
     socket.on('send-message', (data: { content: string }) => {
       try {
+        // Rate limiting
+        if (!messageLimiter.isAllowed(socket.id)) {
+          socket.emit('error', {
+            message: 'Too many messages. Please slow down.',
+          });
+          return;
+        }
+
         if (!currentUserId || !currentRoomId) {
           socket.emit('error', { message: 'Not in a room' });
           return;
         }
 
         const { content } = data;
-        if (!content.trim()) {
-          socket.emit('error', { message: 'Message content cannot be empty' });
+
+        // Validate message content
+        const messageValidation = validateMessage(content);
+        if (!messageValidation.isValid) {
+          socket.emit('error', { message: messageValidation.error });
           return;
         }
+
+        // Sanitize message content
+        const sanitizedContent = sanitizeInput(content);
 
         // Get user info
         const users = roomService.getUsersInRoom(currentRoomId);
@@ -189,7 +230,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
           id: uuidv4(),
           userId: currentUserId,
           nickname: user.nickname,
-          content: content.trim(),
+          content: sanitizedContent,
           timestamp: new Date(),
         };
 
@@ -278,4 +319,10 @@ export function setupSocketHandlers(io: SocketIOServer) {
       }
     });
   });
+
+  // Cleanup rate limiters periodically
+  setInterval(() => {
+    joinRoomLimiter.cleanup();
+    messageLimiter.cleanup();
+  }, 300000); // Cleanup every 5 minutes
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { socketService } from '../services/socketService';
 import { apiService } from '../services/apiService';
@@ -12,6 +12,11 @@ import {
 import UserList from '../components/UserList';
 import ChatArea from '../components/ChatArea';
 import logger from '../utils/logger.js';
+import {
+  validateNickname,
+  sanitizeInput,
+  VALIDATION_RULES,
+} from '../utils/validation';
 
 const RoomPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
@@ -25,6 +30,8 @@ const RoomPage: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [ownerId, setOwnerId] = useState<string | undefined>(undefined);
+  const [nicknameError, setNicknameError] = useState<string>('');
+  const [isNicknameValid, setIsNicknameValid] = useState<boolean>(false);
   const currentUserRef = useRef<User | null>(null);
 
   useEffect(() => {
@@ -243,13 +250,41 @@ const RoomPage: React.FC = () => {
     };
   }, [isJoined, messages.length]);
 
+  // Nickname validation
+  const validateNicknameInput = useCallback((value: string) => {
+    const validation = validateNickname(value);
+    setNicknameError(validation.error ?? '');
+    setIsNicknameValid(validation.isValid);
+  }, []);
+
+  // Handle nickname change with validation
+  const handleNicknameChange = (value: string) => {
+    setNickname(value);
+    // Immediate validation feedback
+    validateNicknameInput(value);
+  };
+
   const handleJoinRoom = async () => {
-    if (!nickname.trim() || !roomId) {
+    if (!roomId || !nickname.trim()) {
+      return;
+    }
+
+    // Final validation before joining
+    const validation = validateNickname(nickname);
+    if (!validation.isValid) {
+      setNicknameError(validation.error ?? 'Invalid nickname');
+      return;
+    }
+
+    const sanitizedNickname = sanitizeInput(nickname);
+    if (!sanitizedNickname) {
+      setNicknameError('Nickname cannot be empty after cleanup');
       return;
     }
 
     setIsConnecting(true);
     setError('');
+    setNicknameError('');
 
     try {
       if (!socketService.isConnected()) {
@@ -260,7 +295,7 @@ const RoomPage: React.FC = () => {
       // No stored userId should be used here - let backend generate a new one
       socketService.joinRoom(
         roomId,
-        nickname.trim(),
+        sanitizedNickname,
         undefined // Always undefined for manual joins
       );
     } catch (err) {
@@ -269,7 +304,7 @@ const RoomPage: React.FC = () => {
       logger.error('Failed to connect to server', {
         error: err instanceof Error ? err.message : String(err),
         roomId,
-        nickname: nickname.trim(),
+        nickname: sanitizedNickname,
       });
     }
   };
@@ -338,18 +373,29 @@ const RoomPage: React.FC = () => {
                 type='text'
                 id='nickname'
                 value={nickname}
-                onChange={e => setNickname(e.target.value)}
+                onChange={e => handleNicknameChange(e.target.value)}
                 onKeyPress={e => e.key === 'Enter' && void handleJoinRoom()}
                 placeholder='Enter your nickname'
-                className='w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500'
-                maxLength={30}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                  nicknameError
+                    ? 'border-red-300 focus:ring-red-500'
+                    : 'border-gray-300 focus:ring-blue-500'
+                }`}
+                maxLength={VALIDATION_RULES.nickname.maxLength}
                 disabled={isConnecting}
               />
+              {nicknameError && (
+                <p className='mt-1 text-sm text-red-600'>{nicknameError}</p>
+              )}
+              <p className='mt-1 text-xs text-gray-500'>
+                {nickname.length}/{VALIDATION_RULES.nickname.maxLength}{' '}
+                characters
+              </p>
             </div>
 
             <button
               onClick={() => void handleJoinRoom()}
-              disabled={!nickname.trim() || isConnecting}
+              disabled={!nickname.trim() || !isNicknameValid || isConnecting}
               className='w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold py-3 px-4 rounded-lg transition duration-200'
             >
               {isConnecting ? 'Joining...' : 'Join Room'}
