@@ -33,6 +33,9 @@ const RoomPage: React.FC = () => {
   const [isVerifyingRoom, setIsVerifyingRoom] = useState(false);
   const [copied, setCopied] = useState(false);
   const [ownerId, setOwnerId] = useState<string | undefined>(undefined);
+  const [roomCapacity, setRoomCapacity] = useState<
+    { current: number; max: number } | undefined
+  >(undefined);
   const [nicknameError, setNicknameError] = useState<string>('');
   const [isNicknameValid, setIsNicknameValid] = useState<boolean>(false);
   const currentUserRef = useRef<User | null>(null);
@@ -143,6 +146,11 @@ const RoomPage: React.FC = () => {
         // Store owner information
         setOwnerId(joinResponse.ownerId);
 
+        // Store capacity information
+        if (joinResponse.capacity) {
+          setRoomCapacity(joinResponse.capacity);
+        }
+
         // Store the complete user session for persistence across sessions
         if (joinResponse.userId && roomId) {
           userPersistenceService.setUserSession(
@@ -180,12 +188,33 @@ const RoomPage: React.FC = () => {
           nickname: userData.nickname,
           userId: userData.id,
         });
-        return [...prev, userData];
+        const newUsers = [...prev, userData];
+
+        // Update capacity current count
+        setRoomCapacity(prevCapacity =>
+          prevCapacity
+            ? { ...prevCapacity, current: newUsers.length }
+            : undefined
+        );
+
+        return newUsers;
       });
     };
 
     const handleUserLeft = (userId: unknown) => {
-      setUsers(prev => prev.filter(u => u.id !== String(userId)));
+      setUsers(prev => {
+        const newUsers = prev.filter(u => u.id !== String(userId));
+
+        // Update capacity current count
+        setRoomCapacity(prevCapacity =>
+          prevCapacity
+            ? { ...prevCapacity, current: newUsers.length }
+            : undefined
+        );
+
+        return newUsers;
+      });
+      // Also remove from typing users
       setTypingUsers(prev => prev.filter(t => t.userId !== String(userId)));
     };
 
@@ -204,7 +233,15 @@ const RoomPage: React.FC = () => {
 
     const handleError = (data: unknown) => {
       const errorData = data as { message: string };
-      setError(errorData.message);
+      const errorMessage = errorData.message;
+
+      // Check if this is a room full error
+      if (errorMessage.includes('Room is full')) {
+        setError(`${errorMessage}. Please try again later.`);
+      } else {
+        setError(errorMessage);
+      }
+
       setIsConnecting(false);
     };
 
@@ -498,6 +535,11 @@ const RoomPage: React.FC = () => {
                 )}
               </button>
             </div>
+            {roomCapacity && (
+              <p className='text-xs text-gray-500'>
+                {roomCapacity.current}/{roomCapacity.max} users
+              </p>
+            )}
           </div>
           <button
             onClick={handleLeaveRoom}

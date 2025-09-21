@@ -42,6 +42,10 @@ export interface JoinRoomResponse {
   userId?: string; // The user's ID (new or existing)
   ownerId?: string; // Room owner's user ID
   ownerNickname?: string; // Room owner's nickname
+  capacity?: {
+    current: number;
+    max: number;
+  };
   error?: string;
 }
 

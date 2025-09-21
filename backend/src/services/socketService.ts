@@ -99,6 +99,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
             const users = roomService.getUsersInRoom(roomId);
             const messages = roomService.getMessages(roomId);
             const room = roomService.getRoom(roomId);
+            const capacityInfo = roomService.getRoomCapacityInfo(roomId);
             const response: JoinRoomResponse = {
               success: true,
               users,
@@ -106,6 +107,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
               userId: existingUserId,
               ownerId: room?.ownerId,
               ownerNickname: room?.ownerNickname,
+              capacity: capacityInfo ?? undefined,
             };
             socket.emit('room-joined', response);
 
@@ -124,6 +126,15 @@ export function setupSocketHandlers(io: SocketIOServer) {
         if (!roomService.isNicknameAvailable(roomId, sanitizedNickname)) {
           socket.emit('error', {
             message: 'This nickname is already taken in this room',
+          });
+          return;
+        }
+
+        // Check if room has capacity for new user (only for truly new users)
+        if (!existingUserId && !roomService.hasCapacity(roomId)) {
+          const capacityInfo = roomService.getRoomCapacityInfo(roomId);
+          socket.emit('error', {
+            message: `Room is full (${capacityInfo?.current}/${capacityInfo?.max} users)`,
           });
           return;
         }
@@ -158,6 +169,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
         const room = roomService.getRoom(roomId);
 
         // Send response to the joining user
+        const capacityInfo = roomService.getRoomCapacityInfo(roomId);
         const response: JoinRoomResponse = {
           success: true,
           users,
@@ -165,6 +177,7 @@ export function setupSocketHandlers(io: SocketIOServer) {
           userId, // Include the userId in the response
           ownerId: room?.ownerId,
           ownerNickname: room?.ownerNickname,
+          capacity: capacityInfo ?? undefined,
         };
         socket.emit('room-joined', response);
 

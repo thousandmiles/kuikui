@@ -14,6 +14,7 @@ export interface Room {
   messages: ChatMessage[];
   ownerId?: string; // User ID of the room creator
   ownerNickname?: string; // Nickname of the room creator
+  capacity: number; // Maximum number of users allowed in the room
 }
 
 export interface ChatMessage {
@@ -48,5 +49,9 @@ export interface JoinRoomResponse {
   userId?: string; // The user's ID (new or existing)
   ownerId?: string; // Room owner's user ID
   ownerNickname?: string; // Room owner's nickname
+  capacity?: {
+    current: number;
+    max: number;
+  };
   error?: string;
 }
