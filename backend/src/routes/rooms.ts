@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { roomService } from '../services/roomService';
 import { CreateRoomErrorResponse } from '../types';
 import { backendConfig } from '../config/environment';
+import { validateRoomId } from '../utils/validation';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -41,6 +42,12 @@ router.get('/room/:roomId/exists', (req: Request, res: Response) => {
 
     if (!roomId) {
       return res.status(400).json({ error: 'Room ID is required' });
+    }
+
+    // Validate room ID format
+    const roomIdValidation = validateRoomId(roomId);
+    if (!roomIdValidation.isValid) {
+      return res.status(400).json({ error: roomIdValidation.error });
     }
 
     const exists = roomService.roomExists(roomId);

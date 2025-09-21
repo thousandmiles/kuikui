@@ -5,6 +5,10 @@ import {
   sanitizeInput,
   VALIDATION_RULES,
 } from '../utils/validation';
+import {
+  formatMessageTimestamp,
+  formatTimestampWithTimezone,
+} from '../utils/dateTime';
 
 interface ChatAreaProps {
   messages: ChatMessage[];
@@ -100,10 +104,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   };
 
   const formatTime = (timestamp: Date) => {
-    return new Date(timestamp).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatMessageTimestamp(timestamp);
   };
 
   return (
@@ -121,7 +122,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                 <span className='font-medium text-gray-900 text-sm'>
                   {message.nickname}
                 </span>
-                <span className='text-xs text-gray-500'>
+                <span
+                  className='text-xs text-gray-500 cursor-help'
+                  title={formatTimestampWithTimezone(message.timestamp)}
+                >
                   {formatTime(message.timestamp)}
                 </span>
               </div>
