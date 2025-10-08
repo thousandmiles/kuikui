@@ -214,7 +214,7 @@ const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
     <div className={`flex h-full w-full bg-white ${className}`}>
       {/* Sidebar (Users / Chat tabs) */}
       <div
-        className={`${getSidebarWidth()} transition-all duration-300 flex-shrink-0 h-full border-r border-gray-200 bg-white`}
+        className={`${getSidebarWidth()} transition-all duration-300 flex-shrink-0 h-full border-r border-gray-200 bg-white relative`}
       >
         <CompactSidebar
           users={users}
@@ -229,8 +229,9 @@ const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
         <button
           type='button'
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className='absolute top-2 right-2 p-1 rounded hover:bg-gray-100 text-gray-500'
+          className='absolute right-0 translate-x-1/2 top-1/2 -translate-y-1/2 transform p-1 rounded bg-white border border-gray-200 shadow-sm hover:bg-gray-100 text-gray-500 z-20'
           title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {sidebarCollapsed ? (
             <svg
@@ -278,12 +279,34 @@ const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
 
       {/* Operations Panel (always rendered to maintain 3-column grid; can be hidden via toggle later) */}
       {showOperations && (
-        <div className='flex-shrink-0 h-full border-l border-r border-gray-200 bg-white w-[clamp(16rem,22vw,20rem)]'>
+        <div className='flex-shrink-0 h-full border-l border-r border-gray-200 bg-white w-[clamp(16rem,22vw,20rem)] relative'>
+          {/* Collapse operations panel toggle (center-left) */}
+          <button
+            type='button'
+            onClick={() => setShowOperations(false)}
+            className='absolute left-0 -translate-x-1/2 top-1/2 -translate-y-1/2 transform p-1 rounded bg-white border border-gray-200 shadow-sm hover:bg-gray-100 text-gray-500 z-20'
+            title='Hide operations panel'
+            aria-label='Hide operations panel'
+          >
+            <svg
+              className='w-4 h-4'
+              fill='none'
+              stroke='currentColor'
+              viewBox='0 0 24 24'
+              aria-hidden='true'
+            >
+              <path
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                strokeWidth={2}
+                d='M9 5l7 7-7 7'
+              />
+            </svg>
+          </button>
           <OperationsPanel
             operations={operations}
             users={users}
             isVisible={showOperations}
-            onToggleVisibility={() => setShowOperations(false)}
             onJumpToOperation={handleJumpToOperation}
             onRevertOperation={handleRevertOperation}
             className='h-full'
@@ -291,24 +314,26 @@ const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
         </div>
       )}
       {!showOperations && (
-        <div className='w-4 flex-shrink-0 h-full flex items-start justify-center'>
+        <div className='w-4 flex-shrink-0 h-full relative'>
           <button
             type='button'
             onClick={() => setShowOperations(true)}
-            className='mt-2 p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded'
+            className='absolute left-0 -translate-x-1/2 top-1/2 -translate-y-1/2 transform p-1 rounded bg-white border border-gray-200 shadow-sm hover:bg-gray-100 text-gray-500 z-20'
             title='Show operations panel'
+            aria-label='Show operations panel'
           >
             <svg
               className='w-4 h-4'
               fill='none'
               stroke='currentColor'
               viewBox='0 0 24 24'
+              aria-hidden='true'
             >
               <path
                 strokeLinecap='round'
                 strokeLinejoin='round'
                 strokeWidth={2}
-                d='M12 4v16m8-8H4'
+                d='M15 19l-7-7 7-7'
               />
             </svg>
           </button>
