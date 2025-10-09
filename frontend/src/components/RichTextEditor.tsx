@@ -2,11 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { EditorState } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { Schema } from 'prosemirror-model';
+import type { MarkType } from 'prosemirror-model';
 import { schema } from 'prosemirror-schema-basic';
 import { addListNodes } from 'prosemirror-schema-list';
 import { keymap } from 'prosemirror-keymap';
 import { history } from 'prosemirror-history';
-import { baseKeymap } from 'prosemirror-commands';
+import { baseKeymap, toggleMark } from 'prosemirror-commands';
+// Base styles for ProseMirror and Yjs cursors
+import 'prosemirror-view/style/prosemirror.css';
 import * as Y from 'yjs';
 import {
   ySyncPlugin,
@@ -90,8 +93,6 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
     const provider = new SocketProvider(`document-${documentId}`, yDoc);
     providerRef.current = provider;
 
-    // Removed connection status listener
-
     // Get Y.js shared type for ProseMirror
     const yXmlFragment = yDoc.getXmlFragment('prosemirror');
 
@@ -104,38 +105,75 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         yUndoPlugin(),
         history(),
         keymap({
-          'Mod-z': state => {
-            const didUndo = undo(state); // y-prosemirror undo expects state only
-            if (didUndo) {
+          'Mod-z': s => {
+            const did = undo(s);
+            if (did) {
               try {
                 socketService.sendOperationUndo('local-undo');
               } catch {
-                // ignore network/connection errors for undo broadcast
+                /* ignore */
               }
             }
-            return didUndo;
+            return did;
           },
-          'Mod-y': state => {
-            const didRedo = redo(state);
-            if (didRedo) {
+          'Mod-y': s => {
+            const did = redo(s);
+            if (did) {
               try {
                 socketService.sendOperationRedo('local-redo');
               } catch {
-                // ignore network/connection errors for redo broadcast
+                /* ignore */
               }
             }
-            return didRedo;
+            return did;
           },
-          'Mod-Shift-z': state => {
-            const didRedo = redo(state);
-            if (didRedo) {
+          'Mod-Shift-z': s => {
+            const did = redo(s);
+            if (did) {
               try {
                 socketService.sendOperationRedo('local-redo');
               } catch {
-                // ignore network/connection errors for redo broadcast
+                /* ignore */
               }
             }
-            return didRedo;
+            return did;
+          },
+          // Formatting shortcuts
+          'Mod-b': (s, d) => {
+            const did = toggleMark(editorSchema.marks.strong)(s, d);
+            if (did) {
+              const { from, to, empty } = s.selection;
+              try {
+                socketService.sendOperation({
+                  id: `${Date.now()}-kb-bold-${from}-${to}`,
+                  type: 'format',
+                  description: 'Toggle bold (keyboard)',
+                  position: { from, to: empty ? from : to },
+                  formatting: ['bold'],
+                });
+              } catch {
+                /* ignore */
+              }
+            }
+            return did;
+          },
+          'Mod-i': (s, d) => {
+            const did = toggleMark(editorSchema.marks.em)(s, d);
+            if (did) {
+              const { from, to, empty } = s.selection;
+              try {
+                socketService.sendOperation({
+                  id: `${Date.now()}-kb-italic-${from}-${to}`,
+                  type: 'format',
+                  description: 'Toggle italic (keyboard)',
+                  position: { from, to: empty ? from : to },
+                  formatting: ['italic'],
+                });
+              } catch {
+                /* ignore */
+              }
+            }
+            return did;
           },
         }),
         keymap(baseKeymap),
@@ -273,28 +311,24 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       return;
     }
 
+    view.focus();
     const { state, dispatch } = view;
-    const markType = editorSchema.marks.strong;
-    const { from, to } = state.selection;
-
-    const removing = markType.isInSet(state.doc.nodeAt(from)?.marks ?? []);
-    if (removing) {
-      dispatch(state.tr.removeMark(from, to, markType));
-    } else {
-      dispatch(state.tr.addMark(from, to, markType.create()));
-    }
+    const { from, to, empty } = state.selection;
+    const did = toggleMark(editorSchema.marks.strong)(state, dispatch);
     // Emit semantic operation (format)
-    try {
-      socketService.sendOperation({
-        id: `${Date.now()}-bold-${from}-${to}`,
-        type: 'format',
-        description: removing ? 'Removed bold' : 'Applied bold',
-        position: { from, to },
-        formatting: ['bold'],
-      });
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('Failed to emit bold operation', err);
+    if (did) {
+      try {
+        socketService.sendOperation({
+          id: `${Date.now()}-bold-${from}-${to}`,
+          type: 'format',
+          description: 'Toggle bold',
+          position: { from, to: empty ? from : to },
+          formatting: ['bold'],
+        });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('Failed to emit bold operation', err);
+      }
     }
   };
 
@@ -305,54 +339,40 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       return;
     }
 
+    view.focus();
     const { state, dispatch } = view;
-    const markType = editorSchema.marks.em;
-    const { from, to } = state.selection;
-
-    const removing = markType.isInSet(state.doc.nodeAt(from)?.marks ?? []);
-    if (removing) {
-      dispatch(state.tr.removeMark(from, to, markType));
-    } else {
-      dispatch(state.tr.addMark(from, to, markType.create()));
-    }
-    try {
-      socketService.sendOperation({
-        id: `${Date.now()}-italic-${from}-${to}`,
-        type: 'format',
-        description: removing ? 'Removed italics' : 'Applied italics',
-        position: { from, to },
-        formatting: ['italic'],
-      });
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('Failed to emit italic operation', err);
+    const { from, to, empty } = state.selection;
+    const did = toggleMark(editorSchema.marks.em)(state, dispatch);
+    if (did) {
+      try {
+        socketService.sendOperation({
+          id: `${Date.now()}-italic-${from}-${to}`,
+          type: 'format',
+          description: 'Toggle italics',
+          position: { from, to: empty ? from : to },
+          formatting: ['italic'],
+        });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('Failed to emit italic operation', err);
+      }
     }
   };
 
-  const insertHeading = (level: number) => {
+  // UI helpers
+  const isMarkActive = (type: MarkType | null | undefined): boolean => {
+    if (!type) {
+      return false;
+    }
     const view = viewRef.current;
-    const editorSchema = schemaRef.current;
-    if (!view || !editorSchema) {
-      return;
+    if (!view) {
+      return false;
     }
-
-    const { state, dispatch } = view;
-    const { from } = state.selection;
-    const headingType = editorSchema.nodes.heading;
-
-    dispatch(state.tr.setBlockType(from, from, headingType, { level }));
-    try {
-      socketService.sendOperation({
-        id: `${Date.now()}-heading-${level}-${from}`,
-        type: 'format',
-        description: `Set heading level ${level}`,
-        position: { from, to: from },
-        formatting: [`heading-${level}`],
-      });
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('Failed to emit heading operation', err);
+    const { from, $from, to, empty } = view.state.selection;
+    if (empty) {
+      return !!type.isInSet(view.state.storedMarks ?? $from.marks());
     }
+    return view.state.doc.rangeHasMark(from, to, type);
   };
 
   const manualSave = () => {
@@ -424,47 +444,111 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
             left: toolbarPosition.left,
             transform: 'translateX(-50%)',
           }}
+          onMouseDown={e => e.preventDefault()}
+          role='toolbar'
+          aria-label='Text formatting toolbar'
+          tabIndex={0}
         >
           <button
             onClick={toggleBold}
-            className='p-2 text-gray-600 hover:bg-gray-100 rounded'
-            title='Bold (Cmd+B)'
+            className={`p-2 rounded-md hover:bg-gray-100 active:bg-gray-200 ${
+              isMarkActive(schemaRef.current?.marks.strong)
+                ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-300'
+                : 'text-gray-700'
+            }`}
+            title='Bold (Ctrl+B)'
+            aria-label='Bold'
           >
-            <svg className='w-4 h-4' fill='currentColor' viewBox='0 0 20 20'>
-              <path
-                fillRule='evenodd'
-                d='M3 4a1 1 0 011-1h6a4 4 0 014 4v1a4 4 0 01-2.4 3.664A4.5 4.5 0 0114 16v1a4 4 0 01-4 4H4a1 1 0 01-1-1V4zm8 7V9a2 2 0 00-2-2H6v4h3a2 2 0 002-2zM6 13v4h4a2 2 0 002-2v-1a2.5 2.5 0 00-2.5-2.5H6z'
-                clipRule='evenodd'
-              />
+            <svg
+              className='w-4 h-4'
+              viewBox='0 0 24 24'
+              fill='currentColor'
+              aria-hidden='true'
+            >
+              <path d='M7 4h7a4 4 0 010 8H7V4zm0 10h8a4 4 0 010 8H7v-8z' />
             </svg>
           </button>
 
           <button
             onClick={toggleItalic}
-            className='p-2 text-gray-600 hover:bg-gray-100 rounded'
-            title='Italic (Cmd+I)'
+            className={`p-2 rounded-md hover:bg-gray-100 active:bg-gray-200 ${
+              isMarkActive(schemaRef.current?.marks.em)
+                ? 'bg-gray-100 text-gray-900 ring-1 ring-gray-300'
+                : 'text-gray-700'
+            }`}
+            title='Italic (Ctrl+I)'
+            aria-label='Italic'
           >
-            <svg className='w-4 h-4' fill='currentColor' viewBox='0 0 20 20'>
-              <path d='M8 2a1 1 0 000 2h1.586l-4.293 4.293a1 1 0 000 1.414L9.586 14H8a1 1 0 100 2h4a1 1 0 000-2h-1.586l4.293-4.293a1 1 0 000-1.414L10.414 4H12a1 1 0 100-2H8z' />
+            <svg
+              className='w-4 h-4'
+              viewBox='0 0 24 24'
+              fill='currentColor'
+              aria-hidden='true'
+            >
+              <path d='M10 4a1 1 0 000 2h2.586l-4 12H6a1 1 0 100 2h8a1 1 0 100-2h-2.586l4-12H18a1 1 0 100-2h-8z' />
             </svg>
           </button>
 
           <div className='w-px h-6 bg-gray-300' />
-
           <button
-            onClick={() => insertHeading(1)}
-            className='px-2 py-1 text-sm font-bold text-gray-600 hover:bg-gray-100 rounded'
-            title='Heading 1'
+            onClick={() => {
+              const v = viewRef.current;
+              if (!v) {
+                return;
+              }
+              v.focus();
+              const did = undo(v.state);
+              if (did) {
+                try {
+                  socketService.sendOperationUndo('floating-undo');
+                } catch {
+                  /* ignore */
+                }
+              }
+            }}
+            className='p-2 rounded-md hover:bg-gray-100 active:bg-gray-200 text-gray-700'
+            title='Undo (Ctrl+Z)'
+            aria-label='Undo'
           >
-            H1
+            <svg
+              className='w-4 h-4'
+              viewBox='0 0 24 24'
+              fill='currentColor'
+              aria-hidden='true'
+            >
+              <path d='M3 7a1 1 0 011-1h8a7 7 0 110 14H9a1 1 0 110-2h3a5 5 0 000-10H4a1 1 0 01-1-1z' />
+              <path d='M7 8l-4 3 4 3V8z' />
+            </svg>
           </button>
-
           <button
-            onClick={() => insertHeading(2)}
-            className='px-2 py-1 text-sm font-bold text-gray-600 hover:bg-gray-100 rounded'
-            title='Heading 2'
+            onClick={() => {
+              const v = viewRef.current;
+              if (!v) {
+                return;
+              }
+              v.focus();
+              const did = redo(v.state);
+              if (did) {
+                try {
+                  socketService.sendOperationRedo('floating-redo');
+                } catch {
+                  /* ignore */
+                }
+              }
+            }}
+            className='p-2 rounded-md hover:bg-gray-100 active:bg-gray-200 text-gray-700'
+            title='Redo (Ctrl+Y)'
+            aria-label='Redo'
           >
-            H2
+            <svg
+              className='w-4 h-4'
+              viewBox='0 0 24 24'
+              fill='currentColor'
+              aria-hidden='true'
+            >
+              <path d='M21 7a1 1 0 00-1-1h-8a7 7 0 100 14h3a1 1 0 100-2H12a5 5 0 010-10h8a1 1 0 001-1z' />
+              <path d='M17 8l4 3-4 3V8z' />
+            </svg>
           </button>
         </div>
       )}
@@ -473,7 +557,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       <div ref={containerRef} className='flex-1 overflow-auto'>
         <div
           ref={editorRef}
-          className='prose prose-sm max-w-none p-6 min-h-full focus:outline-none'
+          className='prose prose-sm max-w-none p-4 min-h-full'
           style={{
             fontSize: '16px',
             lineHeight: '1.6',
