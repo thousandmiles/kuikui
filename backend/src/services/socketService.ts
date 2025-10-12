@@ -511,6 +511,48 @@ export function setupSocketHandlers(io: SocketIOServer) {
       }
     });
 
+    // Handle generic editor activity events (lightweight presence/edit pings)
+    socket.on('editor:activity', (raw: unknown) => {
+      try {
+        if (!currentUserId || !currentRoomId) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.UNAUTHORIZED,
+              'Must join room before sending activity'
+            )
+          );
+          return;
+        }
+
+        const data =
+          typeof raw === 'object' && raw !== null
+            ? (raw as { kind?: string; ts?: string; userId?: string })
+            : ({} as { kind?: string; ts?: string; userId?: string });
+
+        const kind = typeof data.kind === 'string' ? data.kind : 'presence';
+        const ts =
+          typeof data.ts === 'string' ? data.ts : new Date().toISOString();
+        const userId = currentUserId || data.userId;
+
+        // Broadcast to other users in the room (except sender)
+        socket.to(currentRoomId).emit('editor:activity', { kind, ts, userId });
+        logger.debug('Activity update broadcasted', {
+          roomId: currentRoomId,
+          userId,
+          kind,
+          ts,
+        });
+      } catch (error) {
+        logger.error('Error handling activity update', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
+      }
+    });
+
     // Handle editor operation tracking
     socket.on('editor:operation', (raw: unknown) => {
       try {

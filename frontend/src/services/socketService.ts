@@ -146,7 +146,7 @@ class SocketService {
       this.emit('error', structured);
     });
 
-    // Editor events for collaborative editing
+    // Editor events for collaborative editing (minimal)
     this.socket.on(
       'editor:document-update',
       (data: { update: Uint8Array; userId: string }) => {
@@ -162,99 +162,13 @@ class SocketService {
     );
 
     this.socket.on(
-      'editor:operation',
+      'editor:activity',
       (data: {
-        id: string;
-        type: 'insert' | 'delete' | 'format' | 'move';
-        description: string;
-        userId: string;
-        timestamp: string;
-        position?: { from: number; to: number };
-        content?: string;
-        formatting?: string[];
+        kind: 'edit' | 'save' | 'presence';
+        ts: string;
+        userId?: string;
       }) => {
-        this.emit('editor:operation', data);
-      }
-    );
-
-    // Additional editor events from README specification
-    this.socket.on(
-      'editor:document-init',
-      (data: { documentId: string; userId: string; timestamp: string }) => {
-        this.emit('editor:document-init', data);
-      }
-    );
-
-    this.socket.on(
-      'editor:user-join',
-      (data: { userId: string; documentId: string; timestamp: string }) => {
-        this.emit('editor:user-join', data);
-      }
-    );
-
-    this.socket.on(
-      'editor:cursor-update',
-      (data: {
-        userId: string;
-        position: { from: number; to: number };
-        timestamp: string;
-      }) => {
-        this.emit('editor:cursor-update', data);
-      }
-    );
-
-    this.socket.on(
-      'editor:selection-update',
-      (data: {
-        userId: string;
-        selection: { from: number; to: number };
-        timestamp: string;
-      }) => {
-        this.emit('editor:selection-update', data);
-      }
-    );
-
-    this.socket.on(
-      'editor:operation-record',
-      (data: {
-        operationId: string;
-        operation: {
-          type: string;
-          position: { from: number; to: number };
-          content?: unknown;
-          metadata?: unknown;
-        };
-        userId: string;
-        timestamp: string;
-      }) => {
-        this.emit('editor:operation-record', data);
-      }
-    );
-
-    this.socket.on(
-      'editor:operation-undo',
-      (data: { operationId: string; userId: string; timestamp: string }) => {
-        this.emit('editor:operation-undo', data);
-      }
-    );
-
-    this.socket.on(
-      'editor:operation-redo',
-      (data: { operationId: string; userId: string; timestamp: string }) => {
-        this.emit('editor:operation-redo', data);
-      }
-    );
-
-    this.socket.on(
-      'editor:document-save',
-      (data: {
-        documentId: string;
-        title?: string;
-        savedBy: string;
-        timestamp: string;
-        version: number;
-      }) => {
-        this.emit('editor:document-save', data);
+        this.emit('editor:activity', data);
       }
     );
   }
@@ -301,81 +215,12 @@ class SocketService {
     this.socket.emit('editor:awareness-update', { awareness });
   }
 
-  sendOperation(operation: {
-    id: string;
-    type: 'insert' | 'delete' | 'format' | 'move';
-    description: string;
-    position?: { from: number; to: number };
-    content?: string;
-    formatting?: string[];
-  }) {
+  // Minimal activity signal to avoid detailed update information
+  sendEditorActivity(kind: 'edit' | 'save' | 'presence') {
     if (!this.socket) {
       throw new Error('Socket not connected');
     }
-
-    this.socket.emit('editor:operation', operation);
-  }
-
-  // Additional editor send methods from README specification
-  sendDocumentInit(documentId: string) {
-    if (!this.socket) {
-      throw new Error('Socket not connected');
-    }
-
-    this.socket.emit('editor:document-init', { documentId });
-  }
-
-  sendUserJoin(documentId: string) {
-    if (!this.socket) {
-      throw new Error('Socket not connected');
-    }
-
-    this.socket.emit('editor:user-join', { documentId });
-  }
-
-  sendCursorUpdate(position: { from: number; to: number }) {
-    if (!this.socket) {
-      throw new Error('Socket not connected');
-    }
-
-    this.socket.emit('editor:cursor-update', { position });
-  }
-
-  sendSelectionUpdate(selection: { from: number; to: number }) {
-    if (!this.socket) {
-      throw new Error('Socket not connected');
-    }
-
-    this.socket.emit('editor:selection-update', { selection });
-  }
-
-  sendOperationRecord(operation: {
-    type: string;
-    position: { from: number; to: number };
-    content?: unknown;
-    metadata?: unknown;
-  }) {
-    if (!this.socket) {
-      throw new Error('Socket not connected');
-    }
-
-    this.socket.emit('editor:operation-record', { operation });
-  }
-
-  sendOperationUndo(operationId: string) {
-    if (!this.socket) {
-      throw new Error('Socket not connected');
-    }
-
-    this.socket.emit('editor:operation-undo', { operationId });
-  }
-
-  sendOperationRedo(operationId: string) {
-    if (!this.socket) {
-      throw new Error('Socket not connected');
-    }
-
-    this.socket.emit('editor:operation-redo', { operationId });
+    this.socket.emit('editor:activity', { kind });
   }
 
   sendDocumentSave(documentId: string, content?: unknown, title?: string) {

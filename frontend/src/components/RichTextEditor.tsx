@@ -53,6 +53,42 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const [showToolbar, setShowToolbar] = useState(false);
   const [toolbarPosition, setToolbarPosition] = useState({ top: 0, left: 0 });
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [showActivity, setShowActivity] = useState(false);
+  const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastActivitySentRef = useRef<{
+    edit: number;
+    presence: number;
+    save: number;
+  }>({
+    edit: 0,
+    presence: 0,
+    save: 0,
+  });
+
+  // Throttled generic activity signal with per-kind windows
+  // - edit: 5s window
+  // - presence: 8s window
+  // - save: 5s window
+  const pingActivity = (kind: 'edit' | 'save' | 'presence' = 'edit') => {
+    const now = Date.now();
+    const windowMs = kind === 'presence' ? 8000 : 5000;
+    const last = lastActivitySentRef.current[kind];
+    if (now - last < windowMs) {
+      return;
+    }
+    lastActivitySentRef.current[kind] = now;
+    try {
+      socketService.sendEditorActivity(kind);
+    } catch {
+      /* ignore */
+    }
+    // brief UI notice
+    setShowActivity(true);
+    if (activityTimerRef.current) {
+      clearTimeout(activityTimerRef.current);
+    }
+    activityTimerRef.current = setTimeout(() => setShowActivity(false), 1500);
+  };
 
   // Get user color for collaborative cursors
   const getUserColor = (userId: string): string => {
@@ -108,33 +144,21 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
           'Mod-z': s => {
             const did = undo(s);
             if (did) {
-              try {
-                socketService.sendOperationUndo('local-undo');
-              } catch {
-                /* ignore */
-              }
+              pingActivity('edit');
             }
             return did;
           },
           'Mod-y': s => {
             const did = redo(s);
             if (did) {
-              try {
-                socketService.sendOperationRedo('local-redo');
-              } catch {
-                /* ignore */
-              }
+              pingActivity('edit');
             }
             return did;
           },
           'Mod-Shift-z': s => {
             const did = redo(s);
             if (did) {
-              try {
-                socketService.sendOperationRedo('local-redo');
-              } catch {
-                /* ignore */
-              }
+              pingActivity('edit');
             }
             return did;
           },
@@ -142,36 +166,14 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
           'Mod-b': (s, d) => {
             const did = toggleMark(editorSchema.marks.strong)(s, d);
             if (did) {
-              const { from, to, empty } = s.selection;
-              try {
-                socketService.sendOperation({
-                  id: `${Date.now()}-kb-bold-${from}-${to}`,
-                  type: 'format',
-                  description: 'Toggle bold (keyboard)',
-                  position: { from, to: empty ? from : to },
-                  formatting: ['bold'],
-                });
-              } catch {
-                /* ignore */
-              }
+              pingActivity('edit');
             }
             return did;
           },
           'Mod-i': (s, d) => {
             const did = toggleMark(editorSchema.marks.em)(s, d);
             if (did) {
-              const { from, to, empty } = s.selection;
-              try {
-                socketService.sendOperation({
-                  id: `${Date.now()}-kb-italic-${from}-${to}`,
-                  type: 'format',
-                  description: 'Toggle italic (keyboard)',
-                  position: { from, to: empty ? from : to },
-                  formatting: ['italic'],
-                });
-              } catch {
-                /* ignore */
-              }
+              pingActivity('edit');
             }
             return did;
           },
@@ -228,40 +230,20 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
             console.warn('Failed to compute toolbar center position', err);
           }
           onCursorUpdate?.(from, { from, to });
-          try {
-            socketService.sendSelectionUpdate({ from, to });
-          } catch (err) {
-            // eslint-disable-next-line no-console
-            console.warn('Failed to send selection update', err);
-          }
+          // generic activity for selection change
+          pingActivity('presence');
         } else if (tr.selectionSet) {
           setShowToolbar(false);
           const pos = tr.selection.from;
           onCursorUpdate?.(pos);
-          try {
-            socketService.sendCursorUpdate({ from: pos, to: pos });
-          } catch (err) {
-            // eslint-disable-next-line no-console
-            console.warn('Failed to send cursor update', err);
-          }
+          pingActivity('presence');
         }
 
         if (tr.docChanged) {
           const json = newState.doc.toJSON() as Record<string, unknown>;
           onDocumentChange?.(json);
-          try {
-            socketService.sendOperationRecord({
-              type: 'edit',
-              position: {
-                from: tr.mapping.maps.length,
-                to: tr.mapping.maps.length,
-              },
-              content: json,
-            });
-          } catch (err) {
-            // eslint-disable-next-line no-console
-            console.warn('Failed to send operation record', err);
-          }
+          // generic edit activity only
+          pingActivity('edit');
         }
       },
     });
@@ -272,18 +254,16 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       color: getUserColor(currentUserId ?? ''),
     });
 
-    // Emit document lifecycle events once editor initialized
-    try {
-      socketService.sendDocumentInit(documentId);
-      socketService.sendUserJoin(documentId);
-    } catch {
-      // ignore if socket not ready
-    }
+    // Signal presence once editor initialized
+    pingActivity('presence');
 
     return () => {
       view.destroy();
       provider.destroy();
       yDoc.destroy();
+      if (activityTimerRef.current) {
+        clearTimeout(activityTimerRef.current);
+      }
     };
   }, [documentId, currentUserId, users, onDocumentChange, onCursorUpdate]);
 
@@ -313,22 +293,9 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
     view.focus();
     const { state, dispatch } = view;
-    const { from, to, empty } = state.selection;
     const did = toggleMark(editorSchema.marks.strong)(state, dispatch);
-    // Emit semantic operation (format)
     if (did) {
-      try {
-        socketService.sendOperation({
-          id: `${Date.now()}-bold-${from}-${to}`,
-          type: 'format',
-          description: 'Toggle bold',
-          position: { from, to: empty ? from : to },
-          formatting: ['bold'],
-        });
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn('Failed to emit bold operation', err);
-      }
+      pingActivity('edit');
     }
   };
 
@@ -341,21 +308,9 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
     view.focus();
     const { state, dispatch } = view;
-    const { from, to, empty } = state.selection;
     const did = toggleMark(editorSchema.marks.em)(state, dispatch);
     if (did) {
-      try {
-        socketService.sendOperation({
-          id: `${Date.now()}-italic-${from}-${to}`,
-          type: 'format',
-          description: 'Toggle italics',
-          position: { from, to: empty ? from : to },
-          formatting: ['italic'],
-        });
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn('Failed to emit italic operation', err);
-      }
+      pingActivity('edit');
     }
   };
 
@@ -379,7 +334,8 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
     if (viewRef.current && yDocRef.current) {
       setIsSaving(true);
       try {
-        socketService.sendDocumentSave(documentId, yDocRef.current.toJSON());
+        socketService.sendEditorActivity('save');
+        socketService.sendDocumentSave(documentId);
       } catch (err) {
         // eslint-disable-next-line no-console
         console.warn('Failed to emit document save', err);
@@ -499,11 +455,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
               v.focus();
               const did = undo(v.state);
               if (did) {
-                try {
-                  socketService.sendOperationUndo('floating-undo');
-                } catch {
-                  /* ignore */
-                }
+                pingActivity('edit');
               }
             }}
             className='p-2 rounded-md hover:bg-gray-100 active:bg-gray-200 text-gray-700'
@@ -529,11 +481,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
               v.focus();
               const did = redo(v.state);
               if (did) {
-                try {
-                  socketService.sendOperationRedo('floating-redo');
-                } catch {
-                  /* ignore */
-                }
+                pingActivity('edit');
               }
             }}
             className='p-2 rounded-md hover:bg-gray-100 active:bg-gray-200 text-gray-700'
@@ -570,6 +518,18 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         <div className='flex items-center space-x-4'>
           <span>{users.length} users</span>
           <span>Real-time collaboration active</span>
+          {showActivity && (
+            <span className='inline-flex items-center space-x-1 text-blue-700 bg-blue-100 px-2 py-0.5 rounded'>
+              <svg
+                className='w-3.5 h-3.5'
+                viewBox='0 0 20 20'
+                fill='currentColor'
+              >
+                <path d='M2 10a8 8 0 1116 0 8 8 0 01-16 0zm9-4a1 1 0 10-2 0v3.586l-1.707 1.707a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11 9.586V6z' />
+              </svg>
+              <span>Editing activity</span>
+            </span>
+          )}
         </div>
         <div className='flex items-center space-x-2'>
           <span>Ctrl+Z to undo</span>

@@ -1,21 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { socketService } from '../services/socketService';
 import { User } from '../types/index';
 import RichTextEditor from './RichTextEditor';
 import CompactSidebar from './CompactSidebar';
 import OperationsPanel from './OperationsPanel';
-
-interface Operation {
-  id: string;
-  type: 'insert' | 'delete' | 'format' | 'move';
-  user: User;
-  timestamp: Date;
-  description: string;
-  position?: { from: number; to: number };
-  content?: string;
-  formatting?: string[];
-  undone?: boolean; // locally marked as undone
-}
+import { socketService } from '../services/socketService';
 
 interface EditorWorkspaceProps {
   documentId: string;
@@ -42,13 +30,20 @@ const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
   onSendMessage,
   className = '',
 }) => {
-  // Simplified layout state: only track sidebar collapse & operations panel visibility
-  const [showOperations, setShowOperations] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [operations, setOperations] = useState<Operation[]>([]);
-  // cursor position reserved for future status display; currently unused
-  // const [cursorPosition, setCursorPosition] = useState<number>(0);
-  // Responsive helper: auto collapse sidebar on very small screens
+  const [showActivityPanel, setShowActivityPanel] = useState(true);
+  type ActivityKind = 'edit' | 'presence' | 'save';
+  type ActivityItem = {
+    id: string;
+    userId?: string;
+    kind: ActivityKind;
+    timestamp: Date;
+  };
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [recentActiveByUser, setRecentActiveByUser] = useState<
+    Record<string, number>
+  >({});
+
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
@@ -61,150 +56,112 @@ const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Real-time operation history handling
+  // Simple activity aggregation: listen to generic activity events
   useEffect(() => {
-    const handleOperationRecord = (payload: unknown) => {
+    const handler = (payload: unknown) => {
       const data = payload as {
-        operationId: string;
-        operation: {
-          type: string;
-          position?: { from: number; to: number };
-          content?: unknown;
-          metadata?: unknown;
-        };
-        userId: string;
-        timestamp: string;
+        kind?: ActivityKind;
+        ts?: string;
+        userId?: string;
       };
+      const kind: ActivityKind = data.kind ?? 'presence';
+      const ts = data.ts ? new Date(data.ts) : new Date();
+      const id = `${ts.getTime()}-${kind}-${Math.random().toString(36).slice(2, 8)}`;
 
-      const opUser =
-        users.find(u => u.id === data.userId) ??
-        ({ id: data.userId, nickname: 'Unknown', isOnline: false } as User);
-
-      // Coerce type into supported union (fallback to 'insert')
-      const allowedTypes: Operation['type'][] = [
-        'insert',
-        'delete',
-        'format',
-        'move',
-      ];
-      const coercedType = allowedTypes.includes(
-        data.operation.type as Operation['type']
-      )
-        ? (data.operation.type as Operation['type'])
-        : 'insert';
-
-      const description = (() => {
-        switch (coercedType) {
-          case 'format':
-            return 'Formatting change';
-          case 'delete':
-            return 'Content deleted';
-          case 'move':
-            return 'Content moved';
-          default:
-            return 'Content edited';
+      // Coalesce same user/kind within an 8s window to reduce feed spam
+      setActivities(prev => {
+        const windowMs = 8000;
+        const uid = data.userId;
+        const cutoff = ts.getTime() - windowMs;
+        // If the most recent matching item exists within window, update its timestamp instead of adding
+        for (let i = 0; i < Math.min(prev.length, 10); i++) {
+          const item = prev[i];
+          if (
+            item.kind === kind &&
+            item.userId === uid &&
+            item.timestamp.getTime() >= cutoff
+          ) {
+            const updated = [...prev];
+            updated[i] = { ...item, timestamp: ts };
+            return updated;
+          }
         }
-      })();
-
-      setOperations(prev => [
-        {
-          id: data.operationId,
-          type: coercedType,
-          user: opUser,
-          timestamp: new Date(data.timestamp),
-          description,
-          position: data.operation.position,
-          content:
-            typeof data.operation.content === 'string'
-              ? data.operation.content.substring(0, 80)
-              : undefined,
-        },
-        ...prev,
-      ]);
-    };
-
-    const handleOperationUndo = (payload: unknown) => {
-      const data = payload as { operationId?: string };
-      if (!data.operationId) {
-        return;
+        return [
+          { id, userId: data.userId, kind, timestamp: ts },
+          ...prev,
+        ].slice(0, 100);
+      });
+      if (data.userId) {
+        setRecentActiveByUser(prev => ({
+          ...prev,
+          [data.userId!]: ts.getTime(),
+        }));
       }
-      setOperations(prev =>
-        prev.map(op =>
-          op.id === data.operationId ? { ...op, undone: true } : op
-        )
-      );
     };
-
-    const handleOperationRedo = (payload: unknown) => {
-      const data = payload as { operationId?: string };
-      if (!data.operationId) {
-        return;
-      }
-      setOperations(prev =>
-        prev.map(op =>
-          op.id === data.operationId ? { ...op, undone: false } : op
-        )
-      );
-    };
-
-    socketService.on('editor:operation-record', handleOperationRecord);
-    socketService.on('editor:operation-undo', handleOperationUndo);
-    socketService.on('editor:operation-redo', handleOperationRedo);
-
+    // subscribe
+    socketService.on('editor:activity', handler);
     return () => {
-      socketService.off('editor:operation-record', handleOperationRecord);
-      socketService.off('editor:operation-undo', handleOperationUndo);
-      socketService.off('editor:operation-redo', handleOperationRedo);
+      socketService.off('editor:activity', handler);
     };
-  }, [users]);
+  }, []);
+
+  // Local helper to record activity (for local user)
+  const recordActivity = useCallback(
+    (kind: ActivityKind) => {
+      if (!currentUserId) {
+        return;
+      }
+      const ts = new Date();
+      const id = `${ts.getTime()}-${kind}-local`;
+      // Coalesce local as well
+      setActivities(prev => {
+        const windowMs = 8000;
+        const cutoff = ts.getTime() - windowMs;
+        for (let i = 0; i < Math.min(prev.length, 10); i++) {
+          const item = prev[i];
+          if (
+            item.kind === kind &&
+            item.userId === currentUserId &&
+            item.timestamp.getTime() >= cutoff
+          ) {
+            const updated = [...prev];
+            updated[i] = { ...item, timestamp: ts };
+            return updated;
+          }
+        }
+        return [
+          { id, userId: currentUserId, kind, timestamp: ts },
+          ...prev,
+        ].slice(0, 100);
+      });
+      setRecentActiveByUser(prev => ({
+        ...prev,
+        [currentUserId]: ts.getTime(),
+      }));
+    },
+    [currentUserId]
+  );
 
   // Handle document changes
   const handleDocumentChange = useCallback(
-    (content: Record<string, unknown>) => {
-      // Create operation record for the change
-      const newOperation: Operation = {
-        id: Date.now().toString(),
-        type: 'insert', // This would be determined by the actual change
-        user: users.find(u => u.id === currentUserId) ?? users[0],
-        timestamp: new Date(),
-        description: 'Document updated',
-        content: `${JSON.stringify(content).substring(0, 50)}...`,
-      };
-
-      setOperations(prev => [newOperation, ...prev]);
+    (_content: Record<string, unknown>) => {
+      // Keep panel simple: just record an edit activity for local user
+      recordActivity('edit');
     },
-    [users, currentUserId]
+    [recordActivity]
   );
 
   // Handle cursor updates
   const handleCursorUpdate = useCallback(
     (_position: number, _selection?: { from: number; to: number }) => {
-      // Cursor updates can be handled here if we add per-user status later
+      // Treat cursor/selection changes as presence activity for local user
+      recordActivity('presence');
     },
-    []
+    [recordActivity]
   );
 
   // Handle operation actions
-  const handleJumpToOperation = useCallback(
-    (operationId: string) => {
-      const operation = operations.find(op => op.id === operationId);
-      if (operation?.position) {
-        // This would jump the editor to the operation position
-        // console.log('Jumping to operation:', operation);
-      }
-    },
-    [operations]
-  );
-
-  const handleRevertOperation = useCallback((operationId: string) => {
-    // Instead of deleting, emit undo and mark undone; actual Y.js content reversal would be separate logic
-    try {
-      socketService.sendOperationUndo(operationId);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('Failed to emit operation undo', err);
-    }
-  }, []);
+  // Jump/revert operations removed
 
   const getSidebarWidth = () => (sidebarCollapsed ? 'w-14' : 'w-80');
 
@@ -276,24 +233,21 @@ const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
           className='flex-1'
         />
       </div>
-
-      {/* Operations Panel (always rendered to maintain 3-column grid; can be hidden via toggle later) */}
-      {showOperations && (
+      {/* Simple Activity Panel via OperationsPanel simple mode */}
+      {showActivityPanel ? (
         <div className='flex-shrink-0 h-full border-l border-r border-gray-200 bg-white w-[clamp(16rem,22vw,20rem)] relative'>
-          {/* Collapse operations panel toggle (center-left) */}
           <button
             type='button'
-            onClick={() => setShowOperations(false)}
+            onClick={() => setShowActivityPanel(false)}
             className='absolute left-0 -translate-x-1/2 top-1/2 -translate-y-1/2 transform p-1 rounded bg-white border border-gray-200 shadow-sm hover:bg-gray-100 text-gray-500 z-20'
-            title='Hide operations panel'
-            aria-label='Hide operations panel'
+            title='Hide activity panel'
+            aria-label='Hide activity panel'
           >
             <svg
               className='w-4 h-4'
               fill='none'
               stroke='currentColor'
               viewBox='0 0 24 24'
-              aria-hidden='true'
             >
               <path
                 strokeLinecap='round'
@@ -304,30 +258,27 @@ const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
             </svg>
           </button>
           <OperationsPanel
-            operations={operations}
             users={users}
-            isVisible={showOperations}
-            onJumpToOperation={handleJumpToOperation}
-            onRevertOperation={handleRevertOperation}
-            className='h-full'
+            isVisible={true}
+            mode='simple'
+            activities={activities}
+            recentActiveByUser={recentActiveByUser}
           />
         </div>
-      )}
-      {!showOperations && (
+      ) : (
         <div className='w-4 flex-shrink-0 h-full relative'>
           <button
             type='button'
-            onClick={() => setShowOperations(true)}
+            onClick={() => setShowActivityPanel(true)}
             className='absolute left-0 -translate-x-1/2 top-1/2 -translate-y-1/2 transform p-1 rounded bg-white border border-gray-200 shadow-sm hover:bg-gray-100 text-gray-500 z-20'
-            title='Show operations panel'
-            aria-label='Show operations panel'
+            title='Show activity panel'
+            aria-label='Show activity panel'
           >
             <svg
               className='w-4 h-4'
               fill='none'
               stroke='currentColor'
               viewBox='0 0 24 24'
-              aria-hidden='true'
             >
               <path
                 strokeLinecap='round'

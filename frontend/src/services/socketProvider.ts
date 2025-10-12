@@ -13,6 +13,11 @@ export class SocketProvider {
   private isConnected: boolean = false;
   private eventListeners: Map<string, EventCallback[]> = new Map();
   public awareness: Awareness;
+  // Batching/throttling state
+  private pendingDocUpdates: Uint8Array[] = [];
+  private docFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingAwarenessClients: Set<number> = new Set();
+  private awarenessFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(_documentId: string, doc: Y.Doc) {
     this.doc = doc;
@@ -45,10 +50,15 @@ export class SocketProvider {
       }
     });
 
-    // Listen for document updates from this client and send to server
+    // Listen for document updates from this client and batch-send to server
     this.doc.on('update', (update: Uint8Array) => {
-      if (this.isConnected) {
-        socketService.sendDocumentUpdate(update);
+      if (!this.isConnected) {
+        return;
+      }
+      this.pendingDocUpdates.push(update);
+      if (!this.docFlushTimer) {
+        // Flush after a short delay to coalesce bursts of updates
+        this.docFlushTimer = setTimeout(() => this.flushDocUpdates(), 250);
       }
     });
 
@@ -59,20 +69,15 @@ export class SocketProvider {
         if (!this.isConnected) {
           return;
         }
-        const changedClients = [
-          ...changes.added,
-          ...changes.updated,
-          ...changes.removed,
-        ];
-        if (changedClients.length === 0) {
-          return;
-        }
-        try {
-          const update = encodeAwarenessUpdate(this.awareness, changedClients);
-          socketService.sendAwarenessUpdate(update);
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.warn('Failed to encode awareness update', err);
+        // Track changed clients and throttle send
+        [...changes.added, ...changes.updated, ...changes.removed].forEach(c =>
+          this.pendingAwarenessClients.add(c)
+        );
+        if (!this.awarenessFlushTimer) {
+          this.awarenessFlushTimer = setTimeout(
+            () => this.flushAwarenessUpdates(),
+            400
+          );
         }
       }
     );
@@ -82,6 +87,49 @@ export class SocketProvider {
       const status = args[0] as string;
       this.isConnected = status === 'connected';
     });
+  }
+
+  private flushDocUpdates() {
+    try {
+      if (!this.isConnected || this.pendingDocUpdates.length === 0) {
+        return;
+      }
+      const toSend = this.pendingDocUpdates.splice(
+        0,
+        this.pendingDocUpdates.length
+      );
+      // Merge updates to minimize payload count
+      const merged = toSend.length === 1 ? toSend[0] : Y.mergeUpdates(toSend);
+      socketService.sendDocumentUpdate(merged);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('Failed to flush doc updates', err);
+    } finally {
+      if (this.docFlushTimer) {
+        clearTimeout(this.docFlushTimer);
+        this.docFlushTimer = null;
+      }
+    }
+  }
+
+  private flushAwarenessUpdates() {
+    try {
+      if (!this.isConnected || this.pendingAwarenessClients.size === 0) {
+        return;
+      }
+      const clients = Array.from(this.pendingAwarenessClients);
+      this.pendingAwarenessClients.clear();
+      const update = encodeAwarenessUpdate(this.awareness, clients);
+      socketService.sendAwarenessUpdate(update);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('Failed to flush awareness updates', err);
+    } finally {
+      if (this.awarenessFlushTimer) {
+        clearTimeout(this.awarenessFlushTimer);
+        this.awarenessFlushTimer = null;
+      }
+    }
   }
 
   on(event: string, callback: EventCallback) {
@@ -94,6 +142,13 @@ export class SocketProvider {
   destroy() {
     // Clean up event listeners
     this.eventListeners.clear();
+    // Clear timers
+    if (this.docFlushTimer) {
+      clearTimeout(this.docFlushTimer);
+    }
+    if (this.awarenessFlushTimer) {
+      clearTimeout(this.awarenessFlushTimer);
+    }
     // Note: In a real implementation, you'd also clean up socket listeners
   }
 }
