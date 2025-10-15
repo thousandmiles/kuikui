@@ -260,7 +260,6 @@ const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
           <OperationsPanel
             users={users}
             isVisible={true}
-            mode='simple'
             activities={activities}
             recentActiveByUser={recentActiveByUser}
           />
