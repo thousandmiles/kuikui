@@ -517,7 +517,6 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       <div className='h-10 px-4 border-t border-gray-200 bg-gray-50 text-xs text-gray-500 flex items-center justify-between'>
         <div className='flex items-center space-x-4'>
           <span>{users.length} users</span>
-          <span>Real-time collaboration active</span>
           {showActivity && (
             <span className='inline-flex items-center space-x-1 text-blue-700 bg-blue-100 px-2 py-0.5 rounded'>
               <svg
