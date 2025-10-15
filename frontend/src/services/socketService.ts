@@ -145,6 +145,32 @@ class SocketService {
       };
       this.emit('error', structured);
     });
+
+    // Editor events for collaborative editing (minimal)
+    this.socket.on(
+      'editor:document-update',
+      (data: { update: Uint8Array; userId: string }) => {
+        this.emit('editor:document-update', data);
+      }
+    );
+
+    this.socket.on(
+      'editor:awareness-update',
+      (data: { awareness: Uint8Array; userId: string }) => {
+        this.emit('editor:awareness-update', data);
+      }
+    );
+
+    this.socket.on(
+      'editor:activity',
+      (data: {
+        kind: 'edit' | 'save' | 'presence';
+        ts: string;
+        userId?: string;
+      }) => {
+        this.emit('editor:activity', data);
+      }
+    );
   }
 
   joinRoom(roomId: string, nickname: string, userId?: string) {
@@ -170,6 +196,39 @@ class SocketService {
     }
 
     this.socket.emit('user-typing', { isTyping });
+  }
+
+  // Editor methods for collaborative editing
+  sendDocumentUpdate(update: Uint8Array) {
+    if (!this.socket) {
+      throw new Error('Socket not connected');
+    }
+
+    this.socket.emit('editor:document-update', { update });
+  }
+
+  sendAwarenessUpdate(awareness: Uint8Array) {
+    if (!this.socket) {
+      throw new Error('Socket not connected');
+    }
+
+    this.socket.emit('editor:awareness-update', { awareness });
+  }
+
+  // Minimal activity signal to avoid detailed update information
+  sendEditorActivity(kind: 'edit' | 'save' | 'presence') {
+    if (!this.socket) {
+      throw new Error('Socket not connected');
+    }
+    this.socket.emit('editor:activity', { kind });
+  }
+
+  sendDocumentSave(documentId: string, content?: unknown, title?: string) {
+    if (!this.socket) {
+      throw new Error('Socket not connected');
+    }
+
+    this.socket.emit('editor:document-save', { documentId, content, title });
   }
 
   // Event listener management

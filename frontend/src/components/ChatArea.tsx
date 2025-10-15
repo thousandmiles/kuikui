@@ -120,9 +120,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   };
 
   return (
-    <div className='flex-1 flex flex-col bg-gray-50'>
+    <div className='flex-1 flex flex-col bg-gray-50 min-h-0 h-full'>
       {/* Messages area */}
-      <div className='flex-1 overflow-y-auto p-4 space-y-3'>
+      <div className='flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0'>
         {messages.length === 0 ? (
           <div className='text-center text-gray-500 mt-8'>
             <p>No messages yet. Start the conversation!</p>
@@ -151,7 +151,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       </div>
 
       {/* Input area */}
-      <div className='bg-white border-t border-gray-200 p-4'>
+      <div className='bg-white border-t border-gray-200 px-3 pt-3 pb-2 mt-auto'>
         <div className='flex space-x-2'>
           <input
             type='text'
@@ -177,8 +177,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             Send
           </LoadingButton>
         </div>
-
-        <div className='flex justify-between items-center mt-2'>
+        <div className='flex justify-between items-center mt-1'>
           <div className='text-xs text-gray-500'>
             {inputValue.length}/{VALIDATION_RULES.message.maxLength} characters
           </div>

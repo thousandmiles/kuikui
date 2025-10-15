@@ -13,6 +13,7 @@ import {
 } from '../types/index';
 import UserList from '../components/UserList';
 import ChatArea from '../components/ChatArea';
+import EditorWorkspace from '../components/EditorWorkspace';
 import { LoadingSpinner } from '../components/LoadingComponents';
 import logger from '../utils/logger.js';
 import {
@@ -41,6 +42,7 @@ const RoomPage: React.FC = () => {
   >(undefined);
   const [nicknameError, setNicknameError] = useState<string>('');
   const [isNicknameValid, setIsNicknameValid] = useState<boolean>(false);
+  const [mode, setMode] = useState<'chat' | 'editor'>('chat');
   const currentUserRef = useRef<User | null>(null);
   const hasShownInitialConnectRef = useRef(false);
 
@@ -578,27 +580,67 @@ const RoomPage: React.FC = () => {
               </p>
             )}
           </div>
-          <button
-            onClick={handleLeaveRoom}
-            className='px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-red-500'
-          >
-            Leave Room
-          </button>
+          <div className='flex items-center space-x-4'>
+            {/* Mode Toggle */}
+            <div className='flex items-center bg-gray-100 rounded-lg p-1'>
+              <button
+                onClick={() => setMode('chat')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  mode === 'chat'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Chat
+              </button>
+              <button
+                onClick={() => setMode('editor')}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  mode === 'editor'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Editor
+              </button>
+            </div>
+
+            <button
+              onClick={handleLeaveRoom}
+              className='px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition duration-200 focus:outline-none focus:ring-2 focus:ring-red-500'
+            >
+              Leave Room
+            </button>
+          </div>
         </div>
       </header>
 
       <div className='flex-1 flex overflow-hidden'>
-        <UserList
-          users={users}
-          typingUsers={typingUsers}
-          currentUserId={currentUserRef.current?.id}
-          ownerId={ownerId}
-        />
-        <ChatArea
-          messages={messages}
-          onSendMessage={handleSendMessage}
-          onTypingChange={handleTypingChange}
-        />
+        {mode === 'chat' ? (
+          <>
+            <UserList
+              users={users}
+              typingUsers={typingUsers}
+              currentUserId={currentUserRef.current?.id}
+              ownerId={ownerId}
+            />
+            <ChatArea
+              messages={messages}
+              onSendMessage={handleSendMessage}
+              onTypingChange={handleTypingChange}
+            />
+          </>
+        ) : (
+          <EditorWorkspace
+            documentId={roomId || 'default'}
+            users={users}
+            currentUserId={currentUserRef.current?.id}
+            onlineUsers={users.filter(user => user.isOnline)}
+            messages={messages}
+            onSendMessage={handleSendMessage}
+            className='w-full'
+          />
+        )}
       </div>
 
       {error && (

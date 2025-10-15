@@ -70,6 +70,7 @@ export enum SocketErrorCode {
   INTERNAL_ERROR = 'INTERNAL_ERROR',
   DISCONNECTED = 'DISCONNECTED',
   RECONNECT_FAILED = 'RECONNECT_FAILED',
+  UNAUTHORIZED = 'UNAUTHORIZED',
 }
 
 export interface SocketError {
@@ -77,4 +78,32 @@ export interface SocketError {
   message: string;
   details?: Record<string, unknown>;
   recoverable?: boolean; // Hint for UI (e.g. can retry automatically)
+}
+
+// Editor-related types from README specification
+
+export interface DocumentOperation {
+  id: string;
+  type: 'insert' | 'delete' | 'format' | 'structure' | 'save';
+  userId: string;
+  userNickname: string;
+  userColor: string;
+  timestamp: Date;
+  position: { from: number; to: number };
+  content?: unknown; // ProseMirror content
+  metadata?: {
+    formattingType?: 'bold' | 'italic' | 'heading' | 'list';
+    contentPreview?: string;
+  };
+}
+
+export interface EditorDocument {
+  id: string;
+  title: string;
+  content: unknown; // ProseMirror JSON
+  yDoc: unknown; // Y.js document
+  lastModified: Date;
+  modifiedBy: string;
+  version: number;
+  autoSaveEnabled: boolean;
 }

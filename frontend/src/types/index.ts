@@ -55,7 +55,6 @@ export interface TypingStatus {
   isTyping: boolean;
 }
 
-// --- Socket Error Handling (shared contract) ---
 export enum SocketErrorCode {
   VALIDATION = 'VALIDATION',
   ROOM_NOT_FOUND = 'ROOM_NOT_FOUND',
@@ -69,6 +68,7 @@ export enum SocketErrorCode {
   INTERNAL_ERROR = 'INTERNAL_ERROR',
   DISCONNECTED = 'DISCONNECTED',
   RECONNECT_FAILED = 'RECONNECT_FAILED',
+  UNAUTHORIZED = 'UNAUTHORIZED',
 }
 
 export interface SocketError {
@@ -86,3 +86,30 @@ export type SocketLifecycleEvent =
   | 'reconnected'
   | 'connection_error'
   | 'disconnected';
+
+// Editor-related types from README specification
+export interface DocumentOperation {
+  id: string;
+  type: 'insert' | 'delete' | 'format' | 'structure' | 'save';
+  userId: string;
+  userNickname: string;
+  userColor: string;
+  timestamp: Date;
+  position: { from: number; to: number };
+  content?: unknown; // ProseMirror content
+  metadata?: {
+    formattingType?: 'bold' | 'italic' | 'heading' | 'list';
+    contentPreview?: string;
+  };
+}
+
+export interface EditorDocument {
+  id: string;
+  title: string;
+  content: unknown; // ProseMirror JSON
+  yDoc: unknown; // Y.js document
+  lastModified: Date;
+  modifiedBy: string;
+  version: number;
+  autoSaveEnabled: boolean;
+}

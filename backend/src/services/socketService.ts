@@ -415,6 +415,512 @@ export function setupSocketHandlers(io: SocketIOServer) {
       }
     });
 
+    // Handle editor document changes (for Y.js collaboration)
+    socket.on('editor:document-update', (raw: unknown) => {
+      try {
+        if (!currentUserId || !currentRoomId) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.UNAUTHORIZED,
+              'Must join room before updating document'
+            )
+          );
+          return;
+        }
+
+        // Basic validation - Y.js will handle the actual document sync
+        const data = raw as { update?: Uint8Array };
+
+        if (!data.update) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.VALIDATION,
+              'Invalid document update payload'
+            )
+          );
+          return;
+        }
+
+        // Broadcast to other users in the room (except sender)
+        socket.to(currentRoomId).emit('editor:document-update', {
+          update: data.update,
+          userId: currentUserId,
+        });
+
+        logger.info('Document update broadcasted', {
+          roomId: currentRoomId,
+          userId: currentUserId,
+          updateSize: data.update.length,
+        });
+      } catch (error) {
+        logger.error('Error handling document update', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
+      }
+    });
+
+    // Handle editor awareness updates (cursors, selections)
+    socket.on('editor:awareness-update', (raw: unknown) => {
+      try {
+        if (!currentUserId || !currentRoomId) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.UNAUTHORIZED,
+              'Must join room before updating awareness'
+            )
+          );
+          return;
+        }
+
+        const data = raw as { awareness?: Uint8Array };
+
+        if (!data.awareness) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.VALIDATION,
+              'Invalid awareness update payload'
+            )
+          );
+          return;
+        }
+
+        // Broadcast to other users in the room (except sender)
+        socket.to(currentRoomId).emit('editor:awareness-update', {
+          awareness: data.awareness,
+          userId: currentUserId,
+        });
+
+        logger.debug('Awareness update broadcasted', {
+          roomId: currentRoomId,
+          userId: currentUserId,
+        });
+      } catch (error) {
+        logger.error('Error handling awareness update', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
+      }
+    });
+
+    // Handle generic editor activity events (lightweight presence/edit pings)
+    socket.on('editor:activity', (raw: unknown) => {
+      try {
+        if (!currentUserId || !currentRoomId) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.UNAUTHORIZED,
+              'Must join room before sending activity'
+            )
+          );
+          return;
+        }
+
+        const data =
+          typeof raw === 'object' && raw !== null
+            ? (raw as { kind?: string; ts?: string; userId?: string })
+            : ({} as { kind?: string; ts?: string; userId?: string });
+
+        const kind = typeof data.kind === 'string' ? data.kind : 'presence';
+        const ts =
+          typeof data.ts === 'string' ? data.ts : new Date().toISOString();
+        const userId = currentUserId || data.userId;
+
+        // Broadcast to other users in the room (except sender)
+        socket.to(currentRoomId).emit('editor:activity', { kind, ts, userId });
+        logger.debug('Activity update broadcasted', {
+          roomId: currentRoomId,
+          userId,
+          kind,
+          ts,
+        });
+      } catch (error) {
+        logger.error('Error handling activity update', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
+      }
+    });
+
+    // Handle editor operation tracking
+    socket.on('editor:operation', (raw: unknown) => {
+      try {
+        if (!currentUserId || !currentRoomId) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.UNAUTHORIZED,
+              'Must join room before recording operations'
+            )
+          );
+          return;
+        }
+
+        const data = raw as {
+          id?: string;
+          type?: 'insert' | 'delete' | 'format' | 'move';
+          description?: string;
+          position?: { from: number; to: number };
+          content?: string;
+          formatting?: string[];
+        };
+
+        if (!data.id || !data.type || !data.description) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.VALIDATION,
+              'Invalid operation payload'
+            )
+          );
+          return;
+        }
+
+        // Broadcast operation to all users in the room (including sender for confirmation)
+        io.to(currentRoomId).emit('editor:operation', {
+          ...data,
+          userId: currentUserId,
+          timestamp: new Date().toISOString(),
+        });
+
+        logger.info('Editor operation recorded', {
+          roomId: currentRoomId,
+          userId: currentUserId,
+          operationType: data.type,
+          operationId: data.id,
+        });
+      } catch (error) {
+        logger.error('Error handling editor operation', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
+      }
+    });
+
+    // Handle editor document initialization
+    socket.on('editor:document-init', (raw: unknown) => {
+      try {
+        if (!currentUserId || !currentRoomId) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.UNAUTHORIZED,
+              'Must join room before initializing document'
+            )
+          );
+          return;
+        }
+
+        const data = raw as { documentId?: string };
+
+        // Broadcast document initialization to other users in the room
+        socket.to(currentRoomId).emit('editor:document-init', {
+          documentId: data.documentId ?? `doc-${currentRoomId}`,
+          userId: currentUserId,
+          timestamp: new Date(),
+        });
+
+        logger.socket(
+          'editor document initialized',
+          `documentId: ${data.documentId}, userId: ${currentUserId}, roomId: ${currentRoomId}`
+        );
+      } catch (error) {
+        logger.error('Error handling editor document init', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
+      }
+    });
+
+    // Handle user joining editor mode
+    socket.on('editor:user-join', (raw: unknown) => {
+      try {
+        if (!currentUserId || !currentRoomId) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.UNAUTHORIZED,
+              'Must join room before joining editor'
+            )
+          );
+          return;
+        }
+
+        const data = raw as { documentId?: string };
+
+        // Broadcast to other users in the room
+        socket.to(currentRoomId).emit('editor:user-join', {
+          userId: currentUserId,
+          documentId: data.documentId ?? `doc-${currentRoomId}`,
+          timestamp: new Date(),
+        });
+
+        logger.socket(
+          'user joined editor',
+          `userId: ${currentUserId}, roomId: ${currentRoomId}, documentId: ${data.documentId}`
+        );
+      } catch (error) {
+        logger.error('Error handling editor user join', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
+      }
+    });
+
+    // Handle cursor position updates
+    socket.on('editor:cursor-update', (raw: unknown) => {
+      try {
+        if (!currentUserId || !currentRoomId) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.UNAUTHORIZED,
+              'Must join room before updating cursor'
+            )
+          );
+          return;
+        }
+
+        const data = raw as { position?: { from: number; to: number } };
+
+        // Broadcast cursor position to other users in the room
+        socket.to(currentRoomId).emit('editor:cursor-update', {
+          userId: currentUserId,
+          position: data.position,
+          timestamp: new Date(),
+        });
+      } catch (error) {
+        logger.error('Error handling cursor update', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
+      }
+    });
+
+    // Handle text selection updates
+    socket.on('editor:selection-update', (raw: unknown) => {
+      try {
+        if (!currentUserId || !currentRoomId) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.UNAUTHORIZED,
+              'Must join room before updating selection'
+            )
+          );
+          return;
+        }
+
+        const data = raw as { selection?: { from: number; to: number } };
+
+        // Broadcast selection to other users in the room
+        socket.to(currentRoomId).emit('editor:selection-update', {
+          userId: currentUserId,
+          selection: data.selection,
+          timestamp: new Date(),
+        });
+      } catch (error) {
+        logger.error('Error handling selection update', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
+      }
+    });
+
+    // Handle operation recording for history
+    socket.on('editor:operation-record', (raw: unknown) => {
+      try {
+        if (!currentUserId || !currentRoomId) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.UNAUTHORIZED,
+              'Must join room before recording operations'
+            )
+          );
+          return;
+        }
+
+        const data = raw as {
+          operation?: {
+            type: string;
+            position: { from: number; to: number };
+            content?: unknown;
+            metadata?: unknown;
+          };
+        };
+
+        if (!data.operation) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.VALIDATION,
+              'Invalid operation record payload'
+            )
+          );
+          return;
+        }
+
+        // Broadcast operation to all users in the room
+        io.to(currentRoomId).emit('editor:operation-record', {
+          operationId: `op-${Date.now()}-${currentUserId}`,
+          operation: data.operation,
+          userId: currentUserId,
+          timestamp: new Date(),
+        });
+
+        logger.socket(
+          'editor operation recorded',
+          `operationType: ${data.operation.type}, userId: ${currentUserId}, roomId: ${currentRoomId}`
+        );
+      } catch (error) {
+        logger.error('Error handling operation record', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
+      }
+    });
+
+    // Handle undo operations
+    socket.on('editor:operation-undo', (raw: unknown) => {
+      try {
+        if (!currentUserId || !currentRoomId) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.UNAUTHORIZED,
+              'Must join room before undo operations'
+            )
+          );
+          return;
+        }
+
+        const data = raw as { operationId?: string };
+
+        // Broadcast undo to all users in the room
+        io.to(currentRoomId).emit('editor:operation-undo', {
+          operationId: data.operationId,
+          userId: currentUserId,
+          timestamp: new Date(),
+        });
+
+        logger.socket(
+          'editor operation undo',
+          `operationId: ${data.operationId}, userId: ${currentUserId}, roomId: ${currentRoomId}`
+        );
+      } catch (error) {
+        logger.error('Error handling operation undo', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
+      }
+    });
+
+    // Handle redo operations
+    socket.on('editor:operation-redo', (raw: unknown) => {
+      try {
+        if (!currentUserId || !currentRoomId) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.UNAUTHORIZED,
+              'Must join room before redo operations'
+            )
+          );
+          return;
+        }
+
+        const data = raw as { operationId?: string };
+
+        // Broadcast redo to all users in the room
+        io.to(currentRoomId).emit('editor:operation-redo', {
+          operationId: data.operationId,
+          userId: currentUserId,
+          timestamp: new Date(),
+        });
+
+        logger.socket(
+          'editor operation redo',
+          `operationId: ${data.operationId}, userId: ${currentUserId}, roomId: ${currentRoomId}`
+        );
+      } catch (error) {
+        logger.error('Error handling operation redo', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
+      }
+    });
+
+    // Handle document save operations
+    socket.on('editor:document-save', (raw: unknown) => {
+      try {
+        if (!currentUserId || !currentRoomId) {
+          emitSocketError(
+            socket,
+            createSocketError(
+              SocketErrorCode.UNAUTHORIZED,
+              'Must join room before saving document'
+            )
+          );
+          return;
+        }
+
+        const data = raw as {
+          documentId?: string;
+          content?: unknown;
+          title?: string;
+        };
+
+        // Broadcast save confirmation to all users in the room
+        io.to(currentRoomId).emit('editor:document-save', {
+          documentId: data.documentId ?? `doc-${currentRoomId}`,
+          title: data.title,
+          savedBy: currentUserId,
+          timestamp: new Date(),
+          version: Date.now(), // Simple version numbering
+        });
+
+        logger.socket(
+          'editor document saved',
+          `documentId: ${data.documentId}, userId: ${currentUserId}, roomId: ${currentRoomId}, title: ${data.title}`
+        );
+      } catch (error) {
+        logger.error('Error handling document save', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
+      }
+    });
+
     // Handle disconnection
     socket.on('disconnect', () => {
       try {

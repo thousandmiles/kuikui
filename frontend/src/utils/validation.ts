@@ -143,9 +143,8 @@ export function sanitizeInput(input: string): string {
       .trim()
       // Remove potential HTML tags
       .replace(/<[^>]*>/g, '')
-      // Remove potential script content
-      .replace(/javascript:/gi, '')
-      .replace(/data:text\/html/gi, '')
+      // Remove potentially executable URL schemes (javascript:, data:, vbscript:)
+      .replace(/javascript:|data:|vbscript:/gi, '')
       // Normalize whitespace
       .replace(/\s+/g, ' ')
   );
