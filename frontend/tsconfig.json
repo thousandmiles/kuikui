@@ -19,9 +19,8 @@
         "strict": true,
         "noUnusedLocals": true,
         "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
-    "ignoreDeprecations": "6.0"
+        "noFallthroughCasesInSwitch": true,
+        "ignoreDeprecations": "5.0"
     },
     "include": [
         "src",
