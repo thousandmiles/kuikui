@@ -316,7 +316,6 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         clearTimeout(activityTimerRef.current);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId, currentUserId, onDocumentChange, onCursorUpdate]);
 
   // Auto-save functionality
