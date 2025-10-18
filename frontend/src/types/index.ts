@@ -4,6 +4,8 @@ export interface User {
   socketId: string;
   joinedAt: Date;
   isOnline: boolean;
+  isEditing?: boolean;
+  lastActivity?: Date;
 }
 
 export interface Room {
@@ -53,6 +55,12 @@ export interface TypingStatus {
   userId: string;
   nickname: string;
   isTyping: boolean;
+}
+
+export interface EditingStatus {
+  userId: string;
+  nickname: string;
+  isEditing: boolean;
 }
 
 export enum SocketErrorCode {

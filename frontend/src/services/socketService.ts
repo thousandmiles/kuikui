@@ -136,6 +136,13 @@ class SocketService {
       this.emit('user-typing-status', status);
     });
 
+    this.socket.on(
+      'user-editing-status',
+      (status: { userId: string; nickname: string; isEditing: boolean }) => {
+        this.emit('user-editing-status', status);
+      }
+    );
+
     this.socket.on('error', (data: { message: string; code?: string }) => {
       // Normalize to SocketError
       const incomingCode = data.code as SocketErrorCode | undefined;
@@ -196,6 +203,14 @@ class SocketService {
     }
 
     this.socket.emit('user-typing', { isTyping });
+  }
+
+  sendEditingStatus(isEditing: boolean) {
+    if (!this.socket) {
+      throw new Error('Socket not connected');
+    }
+
+    this.socket.emit('user-editing', { isEditing });
   }
 
   // Editor methods for collaborative editing
