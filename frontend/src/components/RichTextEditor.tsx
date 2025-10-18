@@ -8,8 +8,6 @@ import { addListNodes } from 'prosemirror-schema-list';
 import { keymap } from 'prosemirror-keymap';
 import { history } from 'prosemirror-history';
 import { baseKeymap, toggleMark } from 'prosemirror-commands';
-// Base styles for ProseMirror and Yjs cursors
-import 'prosemirror-view/style/prosemirror.css';
 import * as Y from 'yjs';
 import {
   ySyncPlugin,
@@ -64,6 +62,36 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
     presence: 0,
     save: 0,
   });
+  const isEditingRef = useRef<boolean>(false);
+  const editingStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+
+  /**
+   * Debounced editing status broadcast to prevent rapid server updates
+   */
+  const sendEditingStatus = (isEditing: boolean) => {
+    if (editingStatusTimerRef.current) {
+      clearTimeout(editingStatusTimerRef.current);
+      editingStatusTimerRef.current = null;
+    }
+
+    if (isEditingRef.current === isEditing) {
+      return;
+    }
+
+    editingStatusTimerRef.current = setTimeout(
+      () => {
+        isEditingRef.current = isEditing;
+        try {
+          socketService.sendEditingStatus(isEditing);
+        } catch (err) {
+          // Ignore errors
+        }
+      },
+      isEditing ? 300 : 1000
+    );
+  };
 
   // Throttled generic activity signal with per-kind windows
   // - edit: 5s window
@@ -107,6 +135,14 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       .reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return colors[index % colors.length];
   };
+
+  /**
+   * Prevent editor re-creation when user state changes (e.g., editing status updates)
+   */
+  const usersRef = useRef<User[]>(users);
+  useEffect(() => {
+    usersRef.current = users;
+  }, [users]);
 
   // Initialize editor
   useEffect(() => {
@@ -189,13 +225,16 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         focus: () => {
           provider.awareness.setLocalStateField('user', {
             name:
-              users.find(u => u.id === currentUserId)?.nickname ?? 'Anonymous',
+              usersRef.current.find(u => u.id === currentUserId)?.nickname ??
+              'Anonymous',
             color: getUserColor(currentUserId ?? ''),
           });
+          sendEditingStatus(true);
           return false;
         },
         blur: () => {
           setShowToolbar(false);
+          sendEditingStatus(false);
           return false;
         },
       },
@@ -250,7 +289,9 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
     // Set user awareness information
     provider.awareness.setLocalStateField('user', {
-      name: users.find(u => u.id === currentUserId)?.nickname ?? 'Anonymous',
+      name:
+        usersRef.current.find(u => u.id === currentUserId)?.nickname ??
+        'Anonymous',
       color: getUserColor(currentUserId ?? ''),
     });
 
@@ -258,6 +299,16 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
     pingActivity('presence');
 
     return () => {
+      if (editingStatusTimerRef.current) {
+        clearTimeout(editingStatusTimerRef.current);
+      }
+      if (isEditingRef.current) {
+        try {
+          socketService.sendEditingStatus(false);
+        } catch {
+          // Ignore
+        }
+      }
       view.destroy();
       provider.destroy();
       yDoc.destroy();
@@ -265,7 +316,8 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         clearTimeout(activityTimerRef.current);
       }
     };
-  }, [documentId, currentUserId, users, onDocumentChange, onCursorUpdate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentId, currentUserId, onDocumentChange, onCursorUpdate]);
 
   // Auto-save functionality
   useEffect(() => {
@@ -364,6 +416,37 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
   return (
     <div className={`flex flex-col h-full bg-white ${className}`}>
+      {/* Collaborative cursor styles for y-prosemirror plugin */}
+      <style>{`
+        .ProseMirror-yjs-cursor {
+          position: relative;
+          margin-left: -1px;
+          margin-right: -1px;
+          border-left: 2px solid;
+          border-right: none;
+          word-break: normal;
+          pointer-events: none;
+        }
+        .ProseMirror-yjs-cursor > div {
+          position: absolute !important;
+          top: -1.8em !important;
+          left: 2px !important;
+          font-size: 10px !important;
+          color: #ffffff !important;
+          border-radius: 3px !important;
+          padding: 2px 6px !important;
+          font-weight: 600 !important;
+          line-height: 1.3 !important;
+          user-select: none !important;
+          white-space: nowrap !important;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
+          z-index: 1000 !important;
+          pointer-events: none !important;
+        }
+        .ProseMirror-yjs-selection {
+          opacity: 0.5;
+        }
+      `}</style>
       {/* Editor Header */}
       <div className='flex items-center justify-between h-12 px-4 border-b border-gray-200 bg-gray-50'>
         <div className='flex items-center space-x-4'>
@@ -516,7 +599,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       {/* Status Bar */}
       <div className='h-10 px-4 border-t border-gray-200 bg-gray-50 text-xs text-gray-500 flex items-center justify-between'>
         <div className='flex items-center space-x-4'>
-          <span>{users.length} users</span>
+          <span>{usersRef.current.length} users</span>
           {showActivity && (
             <span className='inline-flex items-center space-x-1 text-blue-700 bg-blue-100 px-2 py-0.5 rounded'>
               <svg
