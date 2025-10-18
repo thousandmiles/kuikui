@@ -415,6 +415,55 @@ export function setupSocketHandlers(io: SocketIOServer) {
       }
     });
 
+    /**
+     * Handle document editing status updates for real-time collaboration awareness
+     */
+    socket.on('user-editing', (raw: unknown) => {
+      try {
+        const data =
+          typeof raw === 'object' && raw !== null
+            ? (raw as { isEditing?: unknown })
+            : {};
+        const isEditing =
+          typeof data.isEditing === 'boolean' ? data.isEditing : false;
+        if (!currentUserId || !currentRoomId) {
+          return;
+        }
+
+        const users = roomService.getUsersInRoom(currentRoomId);
+        const user = users.find(u => u.id === currentUserId);
+        if (!user) {
+          return;
+        }
+
+        roomService.updateUserEditingStatus(
+          currentRoomId,
+          currentUserId,
+          isEditing
+        );
+
+        io.to(currentRoomId).emit('user-editing-status', {
+          userId: currentUserId,
+          nickname: user.nickname,
+          isEditing,
+        });
+
+        logger.debug('User editing status updated', {
+          userId: currentUserId,
+          nickname: user.nickname,
+          roomId: currentRoomId,
+          isEditing,
+        });
+      } catch (error) {
+        logger.error('Error handling editing status', {
+          error: error instanceof Error ? error.message : String(error),
+          socketId: socket.id,
+          userId: currentUserId,
+          roomId: currentRoomId,
+        });
+      }
+    });
+
     // Handle editor document changes (for Y.js collaboration)
     socket.on('editor:document-update', (raw: unknown) => {
       try {

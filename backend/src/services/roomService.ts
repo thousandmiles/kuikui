@@ -225,6 +225,30 @@ class RoomService {
     return true;
   }
 
+  /**
+   * Update user's document editing status for real-time collaboration
+   */
+  updateUserEditingStatus(
+    roomId: string,
+    userId: string,
+    isEditing: boolean
+  ): boolean {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return false;
+    }
+
+    const user = room.users.get(userId);
+    if (!user) {
+      return false;
+    }
+
+    user.isEditing = isEditing;
+    user.lastActivity = new Date();
+    room.lastActivity = new Date();
+    return true;
+  }
+
   // Clean up expired rooms (to be called periodically)
   cleanupExpiredRooms(expiryHours: number = 24): number {
     const now = new Date();
