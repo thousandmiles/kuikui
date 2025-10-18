@@ -237,6 +237,28 @@ const RoomPage: React.FC = () => {
       });
     };
 
+    /**
+     * Update user editing status for real-time collaboration awareness
+     */
+    const handleUserEditingStatus = (status: unknown) => {
+      const editingStatus = status as {
+        userId: string;
+        nickname: string;
+        isEditing: boolean;
+      };
+      setUsers(prev =>
+        prev.map(user =>
+          user.id === editingStatus.userId
+            ? {
+                ...user,
+                isEditing: editingStatus.isEditing,
+                lastActivity: new Date(),
+              }
+            : user
+        )
+      );
+    };
+
     const handleError = (data: unknown) => {
       const err = data as SocketError;
       const message = err.message || 'Unknown error';
@@ -283,6 +305,7 @@ const RoomPage: React.FC = () => {
     socketService.on('user-left', handleUserLeft);
     socketService.on('new-message', handleNewMessage);
     socketService.on('user-typing-status', handleUserTypingStatus);
+    socketService.on('user-editing-status', handleUserEditingStatus);
     socketService.on('error', handleError);
     socketService.on('lifecycle', handleLifecycle);
 
@@ -293,6 +316,7 @@ const RoomPage: React.FC = () => {
       socketService.off('user-left', handleUserLeft);
       socketService.off('new-message', handleNewMessage);
       socketService.off('user-typing-status', handleUserTypingStatus);
+      socketService.off('user-editing-status', handleUserEditingStatus);
       socketService.off('error', handleError);
       socketService.off('lifecycle', handleLifecycle);
 
