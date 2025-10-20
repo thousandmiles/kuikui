@@ -7,7 +7,6 @@
         ],
         "module": "Node16",
         "moduleResolution": "node16",
-        "rootDir": "./src",
         "outDir": "./dist",
         "esModuleInterop": true,
         "forceConsistentCasingInFileNames": true,
@@ -24,11 +23,12 @@
         "noUncheckedIndexedAccess": true
     },
     "include": [
-        "src/**/*"
+        "src/**/*",
+        "test/**/*",
+        "test/vitest.d.ts"
     ],
     "exclude": [
         "node_modules",
-        "dist",
-        "**/*.test.ts"
+        "dist"
     ]
 }

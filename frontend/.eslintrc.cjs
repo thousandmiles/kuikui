@@ -14,7 +14,7 @@ module.exports = {
         'plugin:jsx-a11y/recommended',
         'prettier'
     ],
-    ignorePatterns: ['dist', '.eslintrc.cjs', 'vite.config.ts'],
+    ignorePatterns: ['dist', '.eslintrc.cjs', 'vite.config.ts', 'vitest.config.ts', '**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.spec.tsx', 'test/**/*'],
     parser: '@typescript-eslint/parser',
     parserOptions: {
         ecmaVersion: 'latest',

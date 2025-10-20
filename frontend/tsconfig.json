@@ -20,11 +20,14 @@
         "noUnusedLocals": true,
         "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true,
-        "ignoreDeprecations": "5.0"
+        "ignoreDeprecations": "5.0",
+        "types": ["vitest/globals"]
     },
     "include": [
         "src",
-        "src/types/env.d.ts"
+        "src/types/env.d.ts",
+        "test",
+        "test/vitest.d.ts"
     ],
     "references": [
         {
