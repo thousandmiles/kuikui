@@ -49,7 +49,7 @@ const UserList: React.FC<UserListProps> = ({
               />
 
               <div className='flex-1 min-w-0'>
-                <div className='flex items-center'>
+                <div className='flex items-center gap-1.5'>
                   <p
                     className={`text-sm font-medium truncate ${
                       isCurrentUser ? 'text-blue-900' : 'text-gray-900'
@@ -58,19 +58,43 @@ const UserList: React.FC<UserListProps> = ({
                     {user.nickname}
                   </p>
                   {isOwner && (
-                    <span className='ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium'>
+                    <span className='text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium'>
                       owner
                     </span>
                   )}
                   {isCurrentUser && (
-                    <span className='ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium'>
+                    <span className='text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium'>
                       you
                     </span>
                   )}
+                  {user.isEditing && (
+                    <span
+                      className='inline-flex items-center text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium'
+                      title='Editing document'
+                    >
+                      <svg
+                        className='w-3 h-3 mr-1 animate-pulse'
+                        fill='none'
+                        stroke='currentColor'
+                        viewBox='0 0 24 24'
+                        xmlns='http://www.w3.org/2000/svg'
+                      >
+                        <path
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                          strokeWidth={2}
+                          d='M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z'
+                        />
+                      </svg>
+                      editing
+                    </span>
+                  )}
+                  {isTyping && (
+                    <span className='text-xs text-gray-500 italic'>
+                      typing...
+                    </span>
+                  )}
                 </div>
-                {isTyping && (
-                  <p className='text-xs text-gray-500 italic'>typing...</p>
-                )}
               </div>
             </div>
           );

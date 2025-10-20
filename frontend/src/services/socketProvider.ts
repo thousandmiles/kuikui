@@ -22,7 +22,7 @@ export class SocketProvider {
   constructor(_documentId: string, doc: Y.Doc) {
     this.doc = doc;
     this.awareness = new Awareness(doc);
-
+    this.isConnected = socketService.isConnected();
     this.setupEventListeners();
   }
 
@@ -85,7 +85,7 @@ export class SocketProvider {
     // Connection status handling
     socketService.on('lifecycle', (...args: unknown[]) => {
       const status = args[0] as string;
-      this.isConnected = status === 'connected';
+      this.isConnected = status === 'connected' || status === 'reconnected';
     });
   }
 

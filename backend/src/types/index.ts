@@ -4,6 +4,8 @@ export interface User {
   socketId: string;
   joinedAt: Date;
   isOnline: boolean;
+  isEditing?: boolean;
+  lastActivity?: Date;
 }
 
 export interface Room {
@@ -54,6 +56,12 @@ export interface JoinRoomResponse {
     max: number;
   };
   error?: string;
+}
+
+export interface EditingStatus {
+  userId: string;
+  nickname: string;
+  isEditing: boolean;
 }
 
 // --- Socket Error Handling (shared contract) ---
