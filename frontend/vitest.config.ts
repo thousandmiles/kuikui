@@ -9,6 +9,12 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./test/setup.ts'],
     css: true,
+    // Concise test output - show test names with pass/fail
+    reporters: ['verbose'],
+    silent: false,
+    logHeapUsage: false,
+    // Don't print console output during tests
+    onConsoleLog: () => false,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
