@@ -5,6 +5,7 @@ import {
   applyAwarenessUpdate,
 } from 'y-protocols/awareness';
 import { socketService } from '../services/socketService';
+import logger from '../utils/logger';
 
 type EventCallback = (data: unknown) => void;
 
@@ -43,10 +44,9 @@ export class SocketProvider {
           new Uint8Array(data.awareness),
           'remote'
         );
-      } catch (err) {
+      } catch (error) {
         // Silent fail; awareness updates are non-critical
-        // eslint-disable-next-line no-console
-        console.warn('Failed to apply awareness update', err);
+        logger.warn('Failed to apply awareness update', { error });
       }
     });
 
@@ -56,10 +56,8 @@ export class SocketProvider {
         return;
       }
       this.pendingDocUpdates.push(update);
-      if (!this.docFlushTimer) {
-        // Flush after a short delay to coalesce bursts of updates
-        this.docFlushTimer = setTimeout(() => this.flushDocUpdates(), 250);
-      }
+      // Use nullish coalescing assignment
+      this.docFlushTimer ??= setTimeout(() => this.flushDocUpdates(), 250);
     });
 
     // Listen for awareness state changes (cursor, selection, user meta)
@@ -73,12 +71,11 @@ export class SocketProvider {
         [...changes.added, ...changes.updated, ...changes.removed].forEach(c =>
           this.pendingAwarenessClients.add(c)
         );
-        if (!this.awarenessFlushTimer) {
-          this.awarenessFlushTimer = setTimeout(
-            () => this.flushAwarenessUpdates(),
-            400
-          );
-        }
+        // Use nullish coalescing assignment
+        this.awarenessFlushTimer ??= setTimeout(
+          () => this.flushAwarenessUpdates(),
+          400
+        );
       }
     );
 
@@ -101,9 +98,8 @@ export class SocketProvider {
       // Merge updates to minimize payload count
       const merged = toSend.length === 1 ? toSend[0] : Y.mergeUpdates(toSend);
       socketService.sendDocumentUpdate(merged);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('Failed to flush doc updates', err);
+    } catch (error) {
+      logger.warn('Failed to flush doc updates', { error });
     } finally {
       if (this.docFlushTimer) {
         clearTimeout(this.docFlushTimer);
@@ -121,9 +117,8 @@ export class SocketProvider {
       this.pendingAwarenessClients.clear();
       const update = encodeAwarenessUpdate(this.awareness, clients);
       socketService.sendAwarenessUpdate(update);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('Failed to flush awareness updates', err);
+    } catch (error) {
+      logger.warn('Failed to flush awareness updates', { error });
     } finally {
       if (this.awarenessFlushTimer) {
         clearTimeout(this.awarenessFlushTimer);
