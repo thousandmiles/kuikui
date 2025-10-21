@@ -33,6 +33,41 @@ beforeAll(() => {
       dispatchEvent: vi.fn(),
     })),
   });
+
+  // Suppress console warnings and errors during tests
+  const originalError = console.error;
+  const originalWarn = console.warn;
+  const originalLog = console.log;
+  
+  console.log = (...args: unknown[]) => {
+    // Suppress test-specific log messages
+    const message = args[0]?.toString() || '';
+    if (message.includes('Failed to create room')) {
+      return;
+    }
+    originalLog.apply(console, args);
+  };
+
+  console.error = (...args: unknown[]) => {
+    // Filter out known React Router warnings and test-specific messages
+    const message = args[0]?.toString() || '';
+    if (
+      message.includes('React Router Future Flag Warning') ||
+      message.includes('Failed to create room') ||
+      message.includes('Warning: ReactDOM.render')
+    ) {
+      return;
+    }
+    originalError.apply(console, args);
+  };
+
+  console.warn = (...args: unknown[]) => {
+    const message = args[0]?.toString() || '';
+    if (message.includes('React Router')) {
+      return;
+    }
+    originalWarn.apply(console, args);
+  };
 });
 
 // Cleanup after each test
