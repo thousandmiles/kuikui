@@ -48,5 +48,5 @@ module.exports = {
         'require-await': 'error',
         'no-return-await': 'error',
     },
-    ignorePatterns: ['dist', 'node_modules', '*.js'],
+    ignorePatterns: ['dist', 'node_modules', '*.js', '**/*.test.ts', '**/*.spec.ts', 'test/**/*', 'vitest.config.ts'],
 };
