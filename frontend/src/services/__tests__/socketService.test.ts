@@ -20,8 +20,6 @@ import type {
   User,
   ChatMessage,
   TypingStatus,
-  SocketError,
-  SocketErrorCode,
 } from '../../types';
 
 // Mock socket.io-client
@@ -37,10 +35,10 @@ const mockSocket = {
   },
 };
 
-const mockIo = vi.fn(() => mockSocket as unknown as Socket);
+const mockIo = vi.fn();
 
 vi.mock('socket.io-client', () => ({
-  io: (url: string, options: unknown) => mockIo(url, options),
+  io: mockIo,
 }));
 
 // Mock logger
@@ -71,6 +69,9 @@ describe('SocketService', () => {
     // Reset all mocks
     vi.clearAllMocks();
     mockSocket.connected = false;
+    
+    // Make mockIo return mockSocket
+    mockIo.mockReturnValue(mockSocket as unknown as Socket);
     
     // Reset the module to get a fresh instance
     vi.resetModules();
@@ -259,9 +260,8 @@ describe('SocketService', () => {
       )?.[1];
 
       const mockData: JoinRoomResponse = {
-        roomId: 'room-123',
+        success: true,
         userId: 'user-123',
-        nickname: 'TestUser',
         users: [],
         messages: [],
         ownerId: 'user-123',
