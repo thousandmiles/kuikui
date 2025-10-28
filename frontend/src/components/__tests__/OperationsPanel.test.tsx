@@ -1,6 +1,6 @@
 /**
  * @fileoverview Test suite for OperationsPanel component
- * 
+ *
  * Tests collaboration sidebar panel:
  * - User list display with active status
  * - Activity feed rendering
@@ -8,7 +8,7 @@
  * - Activity type labels
  * - Visibility toggling
  * - Empty states
- * 
+ *
  * @see {@link OperationsPanel} for implementation
  */
 
@@ -72,7 +72,7 @@ describe('OperationsPanel', () => {
         <OperationsPanel
           users={mockUsers}
           isVisible={true}
-          className="custom-class"
+          className='custom-class'
         />
       );
 
@@ -244,12 +244,15 @@ describe('OperationsPanel', () => {
     });
 
     it('should limit activities to 20 items', () => {
-      const manyActivities: ActivityItem[] = Array.from({ length: 30 }, (_, i) => ({
-        id: `activity-${i}`,
-        userId: 'user-1',
-        kind: 'edit' as ActivityKind,
-        timestamp: new Date(),
-      }));
+      const manyActivities: ActivityItem[] = Array.from(
+        { length: 30 },
+        (_, i) => ({
+          id: `activity-${i}`,
+          userId: 'user-1',
+          kind: 'edit' as ActivityKind,
+          timestamp: new Date(),
+        })
+      );
 
       const { container } = render(
         <OperationsPanel
@@ -260,7 +263,9 @@ describe('OperationsPanel', () => {
       );
 
       // Count activity items in the recent section
-      const activityItems = container.querySelectorAll('.bg-gray-50.rounded.p-2');
+      const activityItems = container.querySelectorAll(
+        '.bg-gray-50.rounded.p-2'
+      );
       expect(activityItems).toHaveLength(20);
     });
 
@@ -316,7 +321,7 @@ describe('OperationsPanel', () => {
       // Alice and Bob should appear in activities
       const aliceElements = screen.getAllByText('Alice');
       const bobElements = screen.getAllByText('Bob');
-      
+
       expect(aliceElements.length).toBeGreaterThan(0);
       expect(bobElements.length).toBeGreaterThan(0);
     });
@@ -511,7 +516,9 @@ describe('OperationsPanel', () => {
     it('should display footer text', () => {
       render(<OperationsPanel users={mockUsers} isVisible={true} />);
 
-      expect(screen.getByText('Lightweight collaboration view')).toBeInTheDocument();
+      expect(
+        screen.getByText('Lightweight collaboration view')
+      ).toBeInTheDocument();
       expect(screen.getByText('Real-time')).toBeInTheDocument();
     });
 
@@ -527,9 +534,7 @@ describe('OperationsPanel', () => {
 
   describe('Edge Cases', () => {
     it('should handle empty users and activities', () => {
-      render(
-        <OperationsPanel users={[]} isVisible={true} activities={[]} />
-      );
+      render(<OperationsPanel users={[]} isVisible={true} activities={[]} />);
 
       expect(screen.getByText('No users')).toBeInTheDocument();
       expect(screen.getByText('No recent activity')).toBeInTheDocument();

@@ -1,6 +1,6 @@
 /**
  * @fileoverview Test suite for EditorWorkspace component
- * 
+ *
  * Tests collaborative editor workspace layout:
  * - Component integration (RichTextEditor, CompactSidebar, OperationsPanel)
  * - Sidebar collapse/expand functionality
@@ -10,7 +10,7 @@
  * - Socket.io event handling
  * - Responsive behavior (resize handling)
  * - Callback propagation to child components
- * 
+ *
  * @see {@link EditorWorkspace} for implementation
  */
 
@@ -23,8 +23,8 @@ import { socketService } from '../../services/socketService';
 // Mock child components
 vi.mock('../RichTextEditor', () => ({
   default: ({ documentId, onDocumentChange, onCursorUpdate }: any) => (
-    <div data-testid="rich-text-editor">
-      <div data-testid="document-id">{documentId}</div>
+    <div data-testid='rich-text-editor'>
+      <div data-testid='document-id'>{documentId}</div>
       <button onClick={() => onDocumentChange({ content: 'test' })}>
         Change Document
       </button>
@@ -37,21 +37,21 @@ vi.mock('../RichTextEditor', () => ({
 
 vi.mock('../CompactSidebar', () => ({
   default: ({ users, messages, mode, isCollapsed }: any) => (
-    <div data-testid="compact-sidebar">
-      <div data-testid="sidebar-mode">{mode}</div>
-      <div data-testid="sidebar-collapsed">{isCollapsed.toString()}</div>
-      <div data-testid="sidebar-users">{users.length}</div>
-      <div data-testid="sidebar-messages">{messages.length}</div>
+    <div data-testid='compact-sidebar'>
+      <div data-testid='sidebar-mode'>{mode}</div>
+      <div data-testid='sidebar-collapsed'>{isCollapsed.toString()}</div>
+      <div data-testid='sidebar-users'>{users.length}</div>
+      <div data-testid='sidebar-messages'>{messages.length}</div>
     </div>
   ),
 }));
 
 vi.mock('../OperationsPanel', () => ({
   default: ({ users, activities, recentActiveByUser }: any) => (
-    <div data-testid="operations-panel">
-      <div data-testid="panel-users">{users.length}</div>
-      <div data-testid="panel-activities">{activities.length}</div>
-      <div data-testid="panel-active-users">
+    <div data-testid='operations-panel'>
+      <div data-testid='panel-users'>{users.length}</div>
+      <div data-testid='panel-activities'>{activities.length}</div>
+      <div data-testid='panel-active-users'>
         {Object.keys(recentActiveByUser).length}
       </div>
     </div>
@@ -149,7 +149,7 @@ describe('EditorWorkspace', () => {
 
     it('should accept custom className', () => {
       const { container } = render(
-        <EditorWorkspace {...defaultProps} className="custom-class" />
+        <EditorWorkspace {...defaultProps} className='custom-class' />
       );
 
       expect(container.firstChild).toHaveClass('custom-class');
@@ -240,9 +240,7 @@ describe('EditorWorkspace', () => {
       const hideButton = screen.getByTitle('Hide activity panel');
       fireEvent.click(hideButton);
 
-      expect(
-        screen.queryByTestId('operations-panel')
-      ).not.toBeInTheDocument();
+      expect(screen.queryByTestId('operations-panel')).not.toBeInTheDocument();
     });
 
     it('should show activity panel when show button clicked', () => {
@@ -250,9 +248,7 @@ describe('EditorWorkspace', () => {
 
       // Hide first
       fireEvent.click(screen.getByTitle('Hide activity panel'));
-      expect(
-        screen.queryByTestId('operations-panel')
-      ).not.toBeInTheDocument();
+      expect(screen.queryByTestId('operations-panel')).not.toBeInTheDocument();
 
       // Then show
       fireEvent.click(screen.getByTitle('Show activity panel'));
@@ -295,9 +291,7 @@ describe('EditorWorkspace', () => {
     });
 
     it('should not record activity without currentUserId', () => {
-      render(
-        <EditorWorkspace {...defaultProps} currentUserId={undefined} />
-      );
+      render(<EditorWorkspace {...defaultProps} currentUserId={undefined} />);
 
       fireEvent.click(screen.getByText('Change Document'));
 
@@ -425,7 +419,9 @@ describe('EditorWorkspace', () => {
 
     it('should call onSendMessage from CompactSidebar', () => {
       const onSendMessage = vi.fn();
-      render(<EditorWorkspace {...defaultProps} onSendMessage={onSendMessage} />);
+      render(
+        <EditorWorkspace {...defaultProps} onSendMessage={onSendMessage} />
+      );
 
       // Verify prop was passed (mocked component doesn't actually call it)
       expect(screen.getByTestId('compact-sidebar')).toBeInTheDocument();

@@ -1,6 +1,6 @@
 /**
  * @fileoverview Test suite for CompactSidebar component
- * 
+ *
  * Tests compact sidebar with users and chat tabs:
  * - Tab switching (users/chat)
  * - Collapsed vs expanded states
@@ -9,7 +9,7 @@
  * - Unread message badges
  * - Mode switching (chat/editor)
  * - Avatar colors and initials
- * 
+ *
  * @see {@link CompactSidebar} for implementation
  */
 
@@ -21,8 +21,8 @@ import { User, ChatMessage, TypingStatus } from '../../types/index';
 // Mock ChatArea component
 vi.mock('../ChatArea', () => ({
   default: ({ messages, onSendMessage, onTypingChange }: any) => (
-    <div data-testid="chat-area">
-      <div data-testid="message-count">{messages.length}</div>
+    <div data-testid='chat-area'>
+      <div data-testid='message-count'>{messages.length}</div>
       <button onClick={() => onSendMessage('test')}>Send</button>
       <button onClick={() => onTypingChange(true)}>Start Typing</button>
     </div>
@@ -135,7 +135,7 @@ describe('CompactSidebar', () => {
   describe('Expanded View', () => {
     it('should render with correct width in chat mode', () => {
       const { container } = render(
-        <CompactSidebar {...defaultProps} mode="chat" />
+        <CompactSidebar {...defaultProps} mode='chat' />
       );
 
       expect(container.firstChild).toHaveClass('w-64');
@@ -143,7 +143,7 @@ describe('CompactSidebar', () => {
 
     it('should render with correct width in editor mode', () => {
       const { container } = render(
-        <CompactSidebar {...defaultProps} mode="editor" />
+        <CompactSidebar {...defaultProps} mode='editor' />
       );
 
       expect(container.firstChild).toHaveClass('w-80');
@@ -166,7 +166,7 @@ describe('CompactSidebar', () => {
     });
 
     it('should highlight current user', () => {
-      render(<CompactSidebar {...defaultProps} currentUserId="user-1" />);
+      render(<CompactSidebar {...defaultProps} currentUserId='user-1' />);
 
       const aliceContainer = screen.getByText('Alice Smith').closest('div');
       expect(aliceContainer).toHaveClass('bg-blue-100', 'text-blue-800');
@@ -251,11 +251,7 @@ describe('CompactSidebar', () => {
 
     it('should show unread badge in collapsed view', () => {
       render(
-        <CompactSidebar
-          {...defaultProps}
-          unreadCount={3}
-          isCollapsed={true}
-        />
+        <CompactSidebar {...defaultProps} unreadCount={3} isCollapsed={true} />
       );
 
       expect(screen.getByText('3')).toBeInTheDocument();
@@ -407,7 +403,9 @@ describe('CompactSidebar', () => {
 
     it('should pass onSendMessage callback to ChatArea', () => {
       const onSendMessage = vi.fn();
-      render(<CompactSidebar {...defaultProps} onSendMessage={onSendMessage} />);
+      render(
+        <CompactSidebar {...defaultProps} onSendMessage={onSendMessage} />
+      );
 
       fireEvent.click(screen.getByText('Chat'));
       fireEvent.click(screen.getByText('Send'));
@@ -491,7 +489,7 @@ describe('CompactSidebar', () => {
     it('should handle ownerId prop (legacy compatibility)', () => {
       // ownerId is accepted but not displayed in condensed view
       expect(() => {
-        render(<CompactSidebar {...defaultProps} ownerId="user-1" />);
+        render(<CompactSidebar {...defaultProps} ownerId='user-1' />);
       }).not.toThrow();
     });
 
