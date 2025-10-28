@@ -1,10 +1,10 @@
 /**
  * @fileoverview Test suite for App component
- * 
+ *
  * Tests the main application routing:
  * - Route definitions and navigation
  * - HomePage and RoomPage rendering
- * 
+ *
  * @see {@link App} for implementation
  */
 
@@ -15,11 +15,11 @@ import App from '../App';
 
 // Mock the page components to avoid complex dependencies
 vi.mock('../pages/HomePage', () => ({
-  default: () => <div data-testid="home-page">Home Page</div>,
+  default: () => <div data-testid='home-page'>Home Page</div>,
 }));
 
 vi.mock('../pages/RoomPage', () => ({
-  default: () => <div data-testid="room-page">Room Page</div>,
+  default: () => <div data-testid='room-page'>Room Page</div>,
 }));
 
 describe('App', () => {
