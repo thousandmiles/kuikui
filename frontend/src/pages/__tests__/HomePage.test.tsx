@@ -286,5 +286,130 @@ describe('HomePage', () => {
         expect(mockWriteText).toHaveBeenCalledWith(mockRoomLink);
       }
     });
+
+    it('should use fallback copy method when clipboard API fails', async () => {
+      const mockRoomLink = 'http://localhost:5173/room/test-room-id';
+
+      // Mock clipboard.writeText to throw an error
+      const mockWriteText = vi
+        .fn()
+        .mockRejectedValue(new Error('Clipboard API not available'));
+      global.navigator = {
+        ...global.navigator,
+        clipboard: {
+          ...global.navigator.clipboard,
+          writeText: mockWriteText,
+        },
+      } as Navigator;
+
+      // Mock document.execCommand
+      (document as any).execCommand = vi.fn().mockReturnValue(true);
+
+      vi.spyOn(apiService.apiService, 'createRoom').mockResolvedValue({
+        roomId: 'test-room-id',
+        roomLink: mockRoomLink,
+      });
+
+      const user = userEvent.setup();
+      renderHomePage();
+
+      // Create room first
+      const createButton = screen.getByRole('button', {
+        name: /create new room/i,
+      });
+      await user.click(createButton);
+
+      // Wait for copy button
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: /^copy$/i })
+        ).toBeInTheDocument();
+      });
+
+      // Click copy button
+      const copyButton = screen.getByRole('button', { name: /^copy$/i });
+      await user.click(copyButton);
+
+      // Verify fallback was used
+      await waitFor(() => {
+        expect((document as any).execCommand).toHaveBeenCalledWith('copy');
+      });
+
+      // Verify "Copied!" still appears
+      expect(screen.getByText(/copied!/i)).toBeInTheDocument();
+
+      delete (document as any).execCommand;
+    });
+  });
+
+  describe('Enter Room Functionality', () => {
+    it('should navigate to room when enter room button is clicked', async () => {
+      const mockRoomLink =
+        'http://localhost:5173/room/550e8400-e29b-41d4-a716-446655440000';
+      const mockRoomId = '550e8400-e29b-41d4-a716-446655440000';
+
+      vi.spyOn(apiService.apiService, 'createRoom').mockResolvedValue({
+        roomId: mockRoomId,
+        roomLink: mockRoomLink,
+      });
+
+      const user = userEvent.setup();
+      renderHomePage();
+
+      // Create room first
+      const createButton = screen.getByRole('button', {
+        name: /create new room/i,
+      });
+      await user.click(createButton);
+
+      // Wait for enter room button
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: /enter room/i })
+        ).toBeInTheDocument();
+      });
+
+      // Click enter room button
+      const enterButton = screen.getByRole('button', { name: /enter room/i });
+      await user.click(enterButton);
+
+      // Verify navigation was called
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith(`/room/${mockRoomId}`);
+      });
+    });
+
+    it('should show loading state when entering room', async () => {
+      const mockRoomLink =
+        'http://localhost:5173/room/550e8400-e29b-41d4-a716-446655440000';
+
+      vi.spyOn(apiService.apiService, 'createRoom').mockResolvedValue({
+        roomId: '550e8400-e29b-41d4-a716-446655440000',
+        roomLink: mockRoomLink,
+      });
+
+      const user = userEvent.setup();
+      renderHomePage();
+
+      // Create room
+      const createButton = screen.getByRole('button', {
+        name: /create new room/i,
+      });
+      await user.click(createButton);
+
+      // Wait for enter room button
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: /enter room/i })
+        ).toBeInTheDocument();
+      });
+
+      // Click enter room button
+      const enterButton = screen.getByRole('button', { name: /enter room/i });
+      await user.click(enterButton);
+
+      // Check for loading text (briefly)
+      expect(screen.getByText(/entering/i)).toBeInTheDocument();
+    });
   });
 });
