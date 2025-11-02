@@ -747,9 +747,12 @@ describe('RoomService', () => {
   });
 
   describe('getStats', () => {
+    beforeEach(() => {
+      // Ensure complete isolation for stats tests
+      roomService.clearAllRoomsForTest();
+    });
     it('should return stats for empty service', () => {
-      // Clean up any existing rooms first
-      roomService.cleanupExpiredRooms(0);
+      // No rooms after hard reset
 
       const stats = roomService.getStats();
 
@@ -758,8 +761,7 @@ describe('RoomService', () => {
     });
 
     it('should return correct stats with rooms and users', () => {
-      // Clean up any existing rooms first
-      roomService.cleanupExpiredRooms(0);
+      // Start from clean state
 
       const roomId1 = roomService.createRoom();
       const roomId2 = roomService.createRoom();
