@@ -106,7 +106,7 @@ class SocketService {
         // Set up event listeners
         this.setupEventListeners();
       } catch (error) {
-        reject(error);
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
     });
   }
@@ -147,7 +147,7 @@ class SocketService {
       // Normalize to SocketError
       const incomingCode = data.code as SocketErrorCode | undefined;
       const structured: SocketError = {
-        code: incomingCode ? incomingCode : SocketErrorCode.INTERNAL_ERROR,
+        code: incomingCode ?? SocketErrorCode.INTERNAL_ERROR,
         message: data.message || 'Unknown socket error',
       };
       this.emit('error', structured);
@@ -284,4 +284,6 @@ class SocketService {
   }
 }
 
+// Export both the class (for testing) and the singleton instance
+export { SocketService };
 export const socketService = new SocketService();

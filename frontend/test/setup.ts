@@ -34,6 +34,9 @@ beforeAll(() => {
     })),
   });
 
+  // Mock scrollIntoView for DOM elements
+  Element.prototype.scrollIntoView = vi.fn();
+
   // Suppress console warnings and errors during tests
   const originalError = console.error;
   const originalWarn = console.warn;

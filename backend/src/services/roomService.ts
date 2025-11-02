@@ -278,6 +278,14 @@ class RoomService {
 
     return { totalRooms, totalUsers };
   }
+
+  // Test-only utility to hard-reset room state between tests
+  // Intentionally public for ease of use in test suites
+  clearAllRoomsForTest(): void {
+    if (process.env.NODE_ENV === 'test') {
+      this.rooms.clear();
+    }
+  }
 }
 
 export const roomService = new RoomService();

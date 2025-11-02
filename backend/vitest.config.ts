@@ -30,10 +30,10 @@ export default defineConfig({
       // Thresholds set to current coverage levels
       // Will be increased as more tests are added
       thresholds: {
-        lines: 45,
-        functions: 40,
-        branches: 50,
-        statements: 45,
+        lines: 70,
+        functions: 60,
+        branches: 75,
+        statements: 70,
       },
     },
     include: ['src/**/*.{test,spec}.ts'],

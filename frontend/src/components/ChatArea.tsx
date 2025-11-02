@@ -9,6 +9,7 @@ import {
   formatMessageTimestamp,
   formatTimestampWithTimezone,
 } from '../utils/dateTime';
+import logger from '../utils/logger';
 import { LoadingButton } from '../components/LoadingComponents';
 
 interface ChatAreaProps {
@@ -58,7 +59,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       setInputValue('');
       setMessageError('');
       handleTypingStop();
-    } catch (err) {
+    } catch (error) {
+      logger.error('Failed to send message', { error });
       setMessageError('Failed to send message');
     } finally {
       // Add a small delay to show the loading state

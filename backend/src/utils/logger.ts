@@ -27,7 +27,9 @@ const logFormat = winston.format.combine(
   winston.format.errors({ stack: true }),
   winston.format.colorize({ all: true }),
   winston.format.printf(({ timestamp, level, message, context, ...meta }) => {
-    const contextStr = context ? ` [${String(context)}]` : '';
+    const contextStr = context
+      ? ` [${typeof context === 'string' ? context : JSON.stringify(context)}]`
+      : '';
     const metaStr = Object.keys(meta).length
       ? `\n${JSON.stringify(meta, null, 2)}`
       : '';

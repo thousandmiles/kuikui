@@ -9,6 +9,7 @@ import { keymap } from 'prosemirror-keymap';
 import { history } from 'prosemirror-history';
 import { baseKeymap, toggleMark } from 'prosemirror-commands';
 import * as Y from 'yjs';
+import logger from '../utils/logger';
 import {
   ySyncPlugin,
   yCursorPlugin,
@@ -85,8 +86,8 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         isEditingRef.current = isEditing;
         try {
           socketService.sendEditingStatus(isEditing);
-        } catch (err) {
-          // Ignore errors
+        } catch (error) {
+          logger.error('Failed to send editing status', { error });
         }
       },
       isEditing ? 300 : 1000
@@ -264,9 +265,8 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
               setToolbarPosition({ top, left });
             }
             setShowToolbar(true);
-          } catch (err) {
-            // eslint-disable-next-line no-console
-            console.warn('Failed to compute toolbar center position', err);
+          } catch (error) {
+            logger.warn('Failed to compute toolbar center position', { error });
           }
           onCursorUpdate?.(from, { from, to });
           // generic activity for selection change
@@ -387,9 +387,8 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       try {
         socketService.sendEditorActivity('save');
         socketService.sendDocumentSave(documentId);
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn('Failed to emit document save', err);
+      } catch (error) {
+        logger.warn('Failed to emit document save', { error });
       }
       setTimeout(() => {
         setIsSaving(false);

@@ -49,10 +49,10 @@ describe('Validation Utils', () => {
     it('should reject nicknames with invalid characters', () => {
       const result1 = validateNickname('test@user');
       expect(result1.isValid).toBe(false);
-      
+
       const result2 = validateNickname('test!user');
       expect(result2.isValid).toBe(false);
-      
+
       const result3 = validateNickname('test<user');
       expect(result3.isValid).toBe(false);
     });
