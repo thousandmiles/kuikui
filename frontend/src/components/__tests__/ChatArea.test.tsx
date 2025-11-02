@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ChatArea from '../ChatArea';
 import type { ChatMessage } from '../../types';
@@ -341,6 +341,40 @@ describe('ChatArea', () => {
       await waitFor(() => {
         expect(mockOnTypingChange).toHaveBeenCalledWith(true);
       });
+    });
+
+    it('should stop typing after inactivity window (3s) using fake timers', () => {
+      vi.useFakeTimers();
+
+      render(
+        <ChatArea
+          messages={[]}
+          onSendMessage={mockOnSendMessage}
+          onTypingChange={mockOnTypingChange}
+        />
+      );
+
+      const input = screen.getByPlaceholderText(
+        /type.*message/i
+      ) as HTMLInputElement;
+
+      // Simulate typing synchronously without async userEvent
+      // Use React Testing Library fireEvent to trigger React onChange
+      fireEvent.change(input, { target: { value: 'Hi' } });
+
+      // Started typing should be notified immediately
+      expect(mockOnTypingChange).toHaveBeenCalledWith(true);
+
+      // Advance less than timeout and type again to reset timer
+      vi.advanceTimersByTime(2000);
+      fireEvent.change(input, { target: { value: 'Hi!' } });
+
+      // Advance beyond 3s from last keystroke -> should stop typing
+      vi.advanceTimersByTime(3000);
+
+      expect(mockOnTypingChange).toHaveBeenCalledWith(false);
+
+      vi.useRealTimers();
     });
   });
 
